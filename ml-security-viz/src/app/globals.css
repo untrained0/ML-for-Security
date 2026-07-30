@@ -1,0 +1,276 @@
+@import "tailwindcss";
+
+/* ============================================================
+   ML Security Attack Visualizer — Global Styles
+   Design tokens, resets, typography
+   ============================================================ */
+
+/* ── CSS Custom Properties ── */
+:root {
+  /* Background Layers */
+  --bg-primary:       #0a0e17;
+  --bg-secondary:     #111827;
+  --bg-tertiary:      #1a2332;
+  --bg-hover:         #1f2d3d;
+  --bg-active:        #263445;
+  --bg-canvas:        #0d1220;
+
+  /* Accent Colors */
+  --accent-primary:   #6366f1;
+  --accent-hover:     #818cf8;
+  --accent-glow:      rgba(99, 102, 241, 0.15);
+  --accent-muted:     rgba(99, 102, 241, 0.08);
+
+  /* Semantic Colors */
+  --color-clean:      #10b981;
+  --color-clean-dim:  rgba(16, 185, 129, 0.2);
+  --color-attack:     #ef4444;
+  --color-attack-dim: rgba(239, 68, 68, 0.2);
+  --color-warning:    #f59e0b;
+  --color-info:       #3b82f6;
+
+  /* Data Visualization */
+  --data-class-a:     #6366f1;
+  --data-class-b:     #f97316;
+  --data-poison:      #ef4444;
+  --data-support:     #fbbf24;
+  --data-boundary:    #e2e8f0;
+  --data-gradient:    #8b5cf6;
+
+  /* Text */
+  --text-primary:     #f1f5f9;
+  --text-secondary:   #94a3b8;
+  --text-tertiary:    #64748b;
+  --text-accent:      #a5b4fc;
+  --text-code:        #c4b5fd;
+
+  /* Borders */
+  --border-subtle:    rgba(148, 163, 184, 0.08);
+  --border-default:   rgba(148, 163, 184, 0.15);
+  --border-strong:    rgba(148, 163, 184, 0.25);
+
+  /* Shadows */
+  --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md:  0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg:  0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow:0 0 20px var(--accent-glow);
+
+  /* Spacing */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Radius */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-full: 9999px;
+
+  /* Typography Sizes */
+  --text-xs:     11px;
+  --text-sm:     13px;
+  --text-base:   15px;
+  --text-md:     16px;
+  --text-lg:     18px;
+  --text-xl:     22px;
+  --text-2xl:    28px;
+  --text-data:   14px;
+  --text-metric: 20px;
+
+  /* Transitions */
+  --transition-fast:   150ms ease;
+  --transition-base:   250ms ease;
+  --transition-slow:   400ms ease;
+  --transition-spring: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Reset ── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: var(--text-accent);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+ul, ol {
+  list-style: none;
+}
+
+/* ── Typography ── */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+h1 { font-size: var(--text-2xl); font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: var(--text-xl);  font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: var(--text-lg);  font-weight: 600; }
+h4 { font-size: var(--text-md);  font-weight: 500; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* ── Selection ── */
+::selection {
+  background: var(--accent-primary);
+  color: white;
+}
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 8px var(--accent-glow); }
+  50%      { box-shadow: 0 0 20px var(--accent-glow); }
+}
+
+@keyframes poisonPulse {
+  0%, 100% { filter: drop-shadow(0 0 2px var(--color-attack-dim)); }
+  50%      { filter: drop-shadow(0 0 8px var(--color-attack)); }
+}
+
+@keyframes poisonInject {
+  0%   { transform: scale(0); opacity: 0; }
+  50%  { transform: scale(1.4); opacity: 1; }
+  70%  { transform: scale(0.9); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes valueFadeUp {
+  0%   { color: var(--text-code); transform: scale(1); }
+  30%  { color: var(--color-clean); transform: scale(1.1); }
+  100% { color: var(--text-code); transform: scale(1); }
+}
+
+@keyframes valueFadeDown {
+  0%   { color: var(--text-code); transform: scale(1); }
+  30%  { color: var(--color-attack); transform: scale(1.1); }
+  100% { color: var(--text-code); transform: scale(1); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+@layer components {
+  .range-slider {
+    @apply flex-1 appearance-none h-1 bg-[var(--bg-primary)] rounded-full cursor-pointer;
+  }
+  .range-slider::-webkit-slider-thumb {
+    @apply appearance-none w-3.5 h-3.5 bg-[var(--accent-primary)] rounded-full cursor-pointer shadow-[0_0_6px_var(--accent-glow)];
+  }
+}
+
+/* ── KaTeX overrides ── */
+.katex {
+  font-size: 1em !important;
+}
+
+@layer utilities {
+  .hover-point:hover {
+    r: 7;
+    filter: brightness(1.3);
+  }
+}
+
+@keyframes poisonPulseCanvas {
+  0%, 100% { transform: scale(1); opacity: 0.15; }
+  50% { transform: scale(1.3); opacity: 0.3; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+.animate-poison-pulse {
+  animation: poisonPulse 2s ease-in-out infinite;
+  transform-origin: center;
+}
