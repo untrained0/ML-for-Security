@@ -46,6 +46,19 @@
 | Implemented CSV Dataset Upload parser | `ControlPanel.tsx` | 2025-07-30 |
 | Created Onboarding Tutorial overlay | `TutorialModal.tsx`, `AppHeader.tsx`, `useStore.ts` | 2025-07-30 |
 | Updated comprehensive documentation | `README.md` | 2025-07-30 |
+| Fixed infinite pan/zoom bug and canvas rendering | `Canvas.tsx` | 2026-07-30 |
+| Built scalable multi-algorithm registry framework | `src/engine/algorithms/registry.ts`, `index.ts` | 2026-07-30 |
+| Wrapped existing Biggio 2012 SVM logic in new framework | `src/engine/algorithms/biggio2012.ts` | 2026-07-30 |
+| Implemented Jagielski 2018 Regression Poisoning (KKT) | `src/engine/algorithms/jagielski2018.ts` | 2026-07-30 |
+| Added regression datasets (Linear, Quadratic, Sine) | `datasets.ts` | 2026-07-30 |
+| Added 1D approximations of 3 real-world datasets (Warfarin, Lending Club, House Pricing) | `datasets.ts` | 2026-07-30 |
+| Implemented LASSO (Coordinate Descent) and OLS | `jagielski2018.ts` | 2026-07-30 |
+| Implemented Active-Set KKT gradients for LASSO | `jagielski2018.ts` | 2026-07-30 |
+| Fixed regression Timeline / PlaybackBar undefined crashes | `Timeline.tsx`, `PlaybackBar.tsx` | 2026-07-30 |
+| UI adaptive rendering for Regression (lines, residuals) vs Classification (contours) | `Canvas.tsx`, `MathPanel.tsx`, `ControlPanel.tsx`, `PointInspector.tsx` | 2026-07-30 |
+| PointInspector math metrics for individual points | `PointInspector.tsx` | 2026-07-30 |
+| GuidedTour Helper Box for algorithmic walk-through | `GuidedTour.tsx` | 2026-07-30 |
+| Concept Explainer System (clickable math popovers) | `ExplainerCard.tsx`, `explainers.tsx`, `ExplainerIcon.tsx` | 2026-07-30 |
 
 ### 🐛 Bugs Fixed
 
@@ -55,6 +68,8 @@
 | `TypeError: Cannot destructure property 'mean'` | `mnistData` raw data wasn't saved in `setDataset` | Pass `raw` MNIST data into `setDataset` in `page.tsx` |
 | Test Image Predictor showing "Not attacked" | `poisonedRawModel` was not pushed to trace history | Return `rawModel` from `poisonIteration`, push to trace, and strip `kernelFn` during worker IPC |
 | Worker failing to build `computeGradient` | Missing import | Add `computeGradient` import in `worker.ts` |
+| `TypeError: model.supportIndices is not iterable` in PointInspector | Used display model instead of raw model | PointInspector uses `cleanRawModel` and `poisonedRawModel` which retain functional math fields |
+| `The final argument passed to useEffect changed size between renders` | React dependency array mutability on zoom | Extracted variables or stabilized array references in dependencies |
 
 ### 📋 Up Next (Phase 6: Multi-Attack Framework - Future)
 
@@ -62,8 +77,8 @@
 - Evasion attack (FGSM-style) (6.2)
 - Backdoor attack (6.3)
 - Defense visualizations (TRIM, RONI) (6.4)
-- Regression poisoning (6.5)
-- Paper replication dashboard (6.6)
+- ~~Regression poisoning (6.5)~~ (Done: Jagielski 2018)
+- Paper replication dashboard (6.6) (Done: registry framework established)
 
 ---
 
@@ -93,22 +108,33 @@ docs/
 ml-security-viz/src/
 ├── app/
 │   ├── globals.css      ✅
-│   ├── layout.js        ✅
-│   ├── page.js          ✅
-│   └── page.module.css  ✅
+│   ├── layout.tsx       ✅
+│   └── page.tsx         ✅
 ├── components/
-│   ├── AppHeader.js / .module.css     ✅
-│   ├── Canvas.js / .module.css        ✅
-│   ├── ControlPanel.js / .module.css  ✅
-│   ├── MathPanel.js / .module.css     ✅
-│   ├── PlaybackBar.js / .module.css   ✅
-│   └── Timeline.js / .module.css      ✅
+│   ├── AppHeader.tsx     ✅
+│   ├── Canvas.tsx        ✅
+│   ├── ControlPanel.tsx  ✅
+│   ├── MathPanel.tsx     ✅
+│   ├── PlaybackBar.tsx   ✅
+│   ├── Timeline.tsx      ✅
+│   ├── PointInspector.tsx✅
+│   ├── GuidedTour.tsx    ✅
+│   ├── ExplainerCard.tsx ✅
+│   └── ExplainerIcon.tsx ✅
 ├── engine/
-│   ├── linalg.js        ✅
-│   ├── kernels.js       ✅ (bug fixed)
-│   ├── svm.js           ✅
-│   ├── datasets.js      ✅
-│   └── poisoning.js     ✅
+│   ├── architectures/    ✅ (Decoupled plugin framework)
+│   │   ├── registry.ts   ✅
+│   │   ├── index.ts      ✅
+│   │   ├── biggio2012/   ✅ (SVM classification)
+│   │   └── jagielski2018/✅ (Ridge/LASSO regression)
+│   ├── data/
+│   │   ├── datasets.ts   ✅
+│   │   ├── raw/          ✅ (JSON datasets)
+│   │   └── loaders/      ✅
+│   ├── ui/
+│   │   └── explainers.tsx✅
+│   ├── linalg.ts         ✅
+│   └── worker.ts         ✅
 └── store/
-    └── useStore.js      ✅
+    └── useStore.ts       ✅
 ```

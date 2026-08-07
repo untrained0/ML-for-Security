@@ -5,8 +5,15 @@
 import { create } from 'zustand';
 
 export interface StoreState {
+  // ── Algorithm selection ──
+  activeAlgorithm: string;
+  algorithmConfig: Record<string, any>;
+
+  // ── Dataset config ──
   datasetKey: string;
   numPoints: number;
+
+  // ── Legacy SVM config (kept for backward compat, default config for biggio2012) ──
   kernelType: string;
   kernelGamma: number;
   svmC: number;
@@ -15,6 +22,8 @@ export interface StoreState {
   attackBeta: number;
   attackMaxIter: number;
   initStrategy: string;
+
+  // ── Data ──
   dataset: any;
   mnistData: any;
   cleanModel: any;
@@ -25,6 +34,9 @@ export interface StoreState {
   currentIteration: number;
   selectedTestIndex: number;
   hoveredCanvasPoint: [number, number] | null;
+  selectedPoint: { type: 'clean' | 'poison', index: number } | null;
+
+  // ── UI state ──
   showLeftPanel: boolean;
   showRightPanel: boolean;
   isPlaying: boolean;
@@ -36,7 +48,9 @@ export interface StoreState {
   isGeneratingHeatmap: boolean;
   heatmapData: any;
   showTutorial: boolean;
+  activeExplainer: string | null;
   
+  // ── Actions ──
   setConfig: (updates: Partial<StoreState>) => void;
   setShowTutorial: (show: boolean) => void;
   toggleLeftPanel: () => void;
@@ -54,15 +68,21 @@ export interface StoreState {
   setPlaying: (v: boolean) => void;
   setTraining: (v: boolean) => void;
   setAttacking: (v: boolean) => void;
+  setActiveAlgorithm: (key: string) => void;
+  setActiveExplainer: (id: string | null) => void;
   reset: () => void;
 }
 
 const useStore = create<StoreState>((set, get) => ({
+  // ── Algorithm ──
+  activeAlgorithm: 'biggio2012',
+  algorithmConfig: {},
+
   // ── Dataset config ──
   datasetKey: 'moons',
   numPoints: 150,
 
-  // ── SVM config ──
+  // ── SVM config (legacy defaults) ──
   kernelType: 'rbf',
   kernelGamma: 0.8,
   svmC: 1.0,
@@ -75,16 +95,17 @@ const useStore = create<StoreState>((set, get) => ({
   initStrategy: 'random',
 
   // ── Data ──
-  dataset: null,        // { train: {X,y}, valid: {X,y}, test: {X,y} }
-  mnistData: null,      // { images, labels, pcaState } — raw MNIST pixel data
-  cleanModel: null,     // model state object
-  cleanRawModel: null,  // raw SVM model (for test predictions)
+  dataset: null,
+  mnistData: null,
+  cleanModel: null,
+  cleanRawModel: null,
   poisonedRawModel: null,
   poisonedModel: null,
-  attackTrace: [],      // array of iteration states
+  attackTrace: [],
   currentIteration: 0,
-  selectedTestIndex: 0, // index into test set for comparison
+  selectedTestIndex: 0,
   hoveredCanvasPoint: null,
+  selectedPoint: null,
 
   // ── UI state ──
   showLeftPanel: true,
@@ -98,6 +119,7 @@ const useStore = create<StoreState>((set, get) => ({
   isGeneratingHeatmap: false,
   heatmapData: null,
   showTutorial: false,
+  activeExplainer: null,
 
   // ── Actions ──
   setConfig: (updates) => set(updates),
@@ -116,6 +138,7 @@ const useStore = create<StoreState>((set, get) => ({
     currentIteration: 0,
     selectedTestIndex: 0,
     hoveredCanvasPoint: null,
+    selectedPoint: null,
     isPlaying: false,
   }),
 
@@ -178,10 +201,35 @@ const useStore = create<StoreState>((set, get) => ({
     }
   },
 
+  setActiveAlgorithm: (key) => {
+    // Reset everything when switching algorithms
+    set({
+      activeAlgorithm: key,
+      dataset: null,
+      mnistData: null,
+      cleanModel: null,
+      cleanRawModel: null,
+      poisonedModel: null,
+      poisonedRawModel: null,
+      attackTrace: [],
+      currentIteration: 0,
+      selectedTestIndex: 0,
+      hoveredCanvasPoint: null,
+      selectedPoint: null,
+      isPlaying: false,
+      isTraining: false,
+      isAttacking: false,
+      heatmapData: null,
+      showHeatmap: false,
+      algorithmConfig: {},
+    });
+  },
+
   togglePlay: () => set(s => ({ isPlaying: !s.isPlaying })),
   setPlaying: (v) => set({ isPlaying: v }),
   setTraining: (v) => set({ isTraining: v }),
   setAttacking: (v) => set({ isAttacking: v }),
+  setActiveExplainer: (id) => set({ activeExplainer: id }),
 
   reset: () => set({
     cleanModel: null,
@@ -193,6 +241,7 @@ const useStore = create<StoreState>((set, get) => ({
     currentIteration: 0,
     selectedTestIndex: 0,
     hoveredCanvasPoint: null,
+    selectedPoint: null,
     isPlaying: false,
     isTraining: false,
     isAttacking: false,

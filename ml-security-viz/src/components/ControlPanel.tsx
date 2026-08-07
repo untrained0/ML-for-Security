@@ -1,16 +1,45 @@
 'use client';
 import { useRef } from 'react';
 import useStore from '@/store/useStore';
-import { DATASETS } from '@/engine/datasets';
+import { DATASETS } from '@/engine/data/datasets';
+import { getAlgorithm } from '@/engine/architectures';
+import type { ConfigField } from '@/engine/architectures';
+import ExplainerIcon from './ExplainerIcon';
+import { ContourField } from './ContourField';
 
 export default function ControlPanel({ onGenerate, onTrain, onAttack, onGenerateHeatmap }: any) {
   const {
-    datasetKey, kernelType, kernelGamma, svmC, numPoison,
-    attackEta, initStrategy, setConfig, isTraining, isAttacking,
-    showGradients
+    datasetKey, setConfig, isTraining, isAttacking,
+    showGradients, activeAlgorithm, algorithmConfig,
   } = useStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const alg = getAlgorithm(activeAlgorithm);
+
+  // Merge algorithm defaults with any user overrides
+  const config = { ...alg.defaultConfig, ...algorithmConfig };
+  const isRegression = alg.modelType === 'regression';
+
+  // Get config value (check algorithmConfig first, then legacy store fields, then defaults)
+  const getVal = (key: string) => {
+    const storeState = useStore.getState() as any;
+    if (algorithmConfig[key] !== undefined) return algorithmConfig[key];
+    if (storeState[key] !== undefined) return storeState[key];
+    return alg.defaultConfig[key];
+  };
+
+  const setVal = (key: string, value: any) => {
+    // Store in algorithmConfig AND in the legacy field if it exists
+    const storeState = useStore.getState() as any;
+    const updates: any = {
+      algorithmConfig: { ...algorithmConfig, [key]: value },
+    };
+    // Also update legacy store fields for backward compat
+    if (storeState[key] !== undefined) {
+      updates[key] = value;
+    }
+    setConfig(updates);
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,150 +86,158 @@ export default function ControlPanel({ onGenerate, onTrain, onAttack, onGenerate
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // Filter datasets by what this algorithm supports
+  const filteredDatasets = Object.entries(DATASETS).filter(
+    ([k]) => alg.datasets.includes(k)
+  );
+
+  const modelFields = alg.configSchema.filter(f => f.section === 'model');
+  const attackFields = alg.configSchema.filter(f => f.section === 'attack');
+
+  const explainerMap: Record<string, string> = {
+    svmC: 'svm_c',
+    kernelGamma: 'kernel_gamma',
+    attackEta: 'attack_eta',
+    attackBeta: 'attack_beta',
+    ridgeLambda: 'ridge_lambda'
+  };
+
+  const renderField = (field: ConfigField) => {
+    const val = getVal(field.key);
+
+    if (field.type === 'select') {
+      return (
+        <div key={field.key} className="flex flex-col gap-1.5">
+          <label className="eyebrow flex items-center justify-between" title={field.tooltip}>
+            <span className="flex items-center gap-1.5">
+              {field.label}
+              {explainerMap[field.key] && <ExplainerIcon id={explainerMap[field.key]} />}
+            </span>
+          </label>
+          <div className="relative after:content-['▾'] after:absolute after:right-2.5 after:top-1/2 after:-translate-y-1/2 after:text-muted-foreground after:pointer-events-none after:text-xs">
+            <select 
+              value={val} 
+              onChange={e => setVal(field.key, e.target.value)}
+              className="w-full appearance-none py-1.5 pr-8 pl-2.5 bg-background border border-border rounded-md text-foreground text-sm cursor-pointer focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary [&>option]:bg-card"
+            >
+              {field.options?.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      );
+    }
+
+    if (field.type === 'range') {
+      // Hide gamma slider when linear kernel is selected (SVM-specific logic)
+      if (field.key === 'kernelGamma' && getVal('kernelType') === 'linear') return null;
+      // Hide lambda slider when OLS is selected (Regression-specific logic)
+      if (field.key === 'ridgeLambda' && getVal('regType') === 'ols') return null;
+
+      return (
+        <div key={field.key} className="flex flex-col gap-1.5">
+          <label className="eyebrow flex items-center justify-between" title={field.tooltip}>
+            <span className="flex items-center gap-1.5">
+              {field.label}
+              {explainerMap[field.key] && <ExplainerIcon id={explainerMap[field.key]} />}
+            </span>
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={field.min} max={field.max} step={field.step}
+              value={val}
+              className="range-slider flex-1"
+              onChange={e => setVal(field.key, +e.target.value)}
+            />
+            <span className="data-value bg-muted px-2 py-0.5 rounded min-w-[40px] text-center">
+              {typeof val === 'number' ? (Number.isInteger(val) ? val : val.toFixed(2)) : val}
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
-    <aside className="bg-[var(--bg-secondary)] border-r border-[var(--border-subtle)] overflow-y-auto p-3 flex flex-col gap-3 h-full">
+    <aside className="glass-panel overflow-y-auto p-4 flex flex-col gap-5 h-full relative overflow-hidden">
+      <ContourField />
       {/* Dataset Selection */}
-      <section className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-          <span className="text-[14px]">📊</span> Dataset
+      <section className="flex flex-col gap-3 relative z-10">
+        <h3 className="eyebrow flex items-center gap-2 mb-1">
+          <span>📊</span> Dataset
         </h3>
-        <div className="flex flex-wrap gap-1.5">
-          {Object.entries(DATASETS).map(([k, d]) => (
+        <div className="flex flex-wrap gap-2">
+          {filteredDatasets.map(([k, d]) => (
             <button
               key={k}
               onClick={() => setConfig({ datasetKey: k })}
-              className={`px-2.5 py-1.5 border border-[var(--border-default)] rounded-md text-xs font-medium text-[var(--text-secondary)] cursor-pointer transition-all duration-200 flex items-center gap-1 bg-transparent hover:border-[var(--accent-primary)] hover:text-[var(--text-accent)] hover:bg-[var(--accent-muted)] ${
-                datasetKey === k ? '!bg-[var(--accent-primary)] !text-white !border-[var(--accent-primary)]' : ''
+              className={`px-3 py-1.5 border rounded-md text-xs font-medium cursor-pointer transition-colors duration-150 flex items-center gap-1 ${
+                datasetKey === k 
+                  ? 'bg-primary text-primary-foreground border-primary' 
+                  : 'bg-transparent border-border text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/10'
               }`}
+              title={d.desc}
             >
               {d.name}
             </button>
           ))}
         </div>
-        <div className="flex gap-2 w-full">
+        <div className="flex gap-2 w-full mt-1">
           <button 
-            className="flex-1 py-2 px-4 rounded-md text-sm font-medium cursor-pointer transition-all duration-200 border-none flex items-center justify-center gap-1.5 bg-[var(--accent-primary)] text-white hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed" 
+            className="inline-flex flex-1 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors duration-150 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50" 
             onClick={onGenerate} 
             disabled={isAttacking || isTraining}
           >
             Generate
           </button>
-          <button 
-            className="flex-1 py-2 px-4 rounded-md text-sm font-medium cursor-pointer transition-all duration-200 border border-[var(--border-default)] flex items-center justify-center gap-1.5 bg-transparent text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50 disabled:cursor-not-allowed" 
-            onClick={() => fileInputRef.current?.click()} 
-            disabled={isAttacking || isTraining}
-          >
-            Upload CSV
-          </button>
+          {!isRegression && (
+            <button 
+              className="inline-flex flex-1 items-center justify-center rounded-md bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-colors duration-150 hover:bg-secondary/80 disabled:pointer-events-none disabled:opacity-50" 
+              onClick={() => fileInputRef.current?.click()} 
+              disabled={isAttacking || isTraining}
+            >
+              Upload CSV
+            </button>
+          )}
           <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
         </div>
       </section>
 
-      <div className="h-[1px] bg-[var(--border-subtle)] my-1 shrink-0" />
+      <div className="h-px bg-border-subtle my-1 shrink-0 w-full" />
 
-      {/* Model Config */}
-      <section className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-          <span className="text-[14px]">🧠</span> SVM Model
+      {/* Model Config — dynamically rendered */}
+      <section className="flex flex-col gap-4 relative z-10">
+        <h3 className="eyebrow flex items-center gap-2">
+          <span>{isRegression ? '📈' : '🧠'}</span> {isRegression ? 'Ridge Model' : 'SVM Model'}
         </h3>
-        <div className="flex flex-wrap gap-1.5">
-          {['linear', 'rbf'].map(k => (
-            <button
-              key={k}
-              onClick={() => setConfig({ kernelType: k })}
-              className={`px-2.5 py-1.5 border border-[var(--border-default)] rounded-md text-xs font-medium text-[var(--text-secondary)] cursor-pointer transition-all duration-200 flex items-center gap-1 bg-transparent hover:border-[var(--accent-primary)] hover:text-[var(--text-accent)] hover:bg-[var(--accent-muted)] ${
-                kernelType === k ? '!bg-[var(--accent-primary)] !text-white !border-[var(--accent-primary)]' : ''
-              }`}
-            >
-              {k.toUpperCase()} Kernel
-            </button>
-          ))}
+        <div className="flex flex-col gap-3">
+          {modelFields.map(renderField)}
         </div>
-
-        {kernelType === 'rbf' && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-[0.04em]">Gamma (γ)</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="range" min="0.1" max="5" step="0.1"
-                value={kernelGamma}
-                className="range-slider"
-                onChange={e => setConfig({ kernelGamma: +e.target.value })}
-              />
-              <span className="font-mono text-xs text-[var(--text-accent)] bg-[var(--accent-muted)] px-2 py-px rounded-sm min-w-[36px] text-center">{kernelGamma}</span>
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-[0.04em]">Regularization (C)</label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range" min="0.1" max="10" step="0.1"
-              value={svmC}
-              className="range-slider"
-              onChange={e => setConfig({ svmC: +e.target.value })}
-            />
-            <span className="font-mono text-xs text-[var(--text-accent)] bg-[var(--accent-muted)] px-2 py-px rounded-sm min-w-[36px] text-center">{svmC}</span>
-          </div>
-        </div>
-
         <button 
-          className="w-full py-2 px-4 rounded-md text-sm font-medium cursor-pointer transition-all duration-200 border-none flex items-center justify-center gap-1.5 bg-[var(--color-clean)] text-white hover:bg-[#059669] disabled:opacity-50 disabled:cursor-not-allowed" 
+          className="inline-flex w-full items-center justify-center rounded-md bg-clean px-4 py-2 mt-1 text-sm font-medium text-clean-foreground transition-colors duration-150 hover:bg-clean/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50" 
           onClick={onTrain} 
           disabled={isAttacking || isTraining}
         >
-          {isTraining ? '⏳ Training...' : '▶ Train Clean Model'}
+          {isTraining ? '⏳ Training...' : `▶ Train Clean Model`}
         </button>
       </section>
 
-      <div className="h-[1px] bg-[var(--border-subtle)] my-1 shrink-0" />
+      <div className="h-px bg-border-subtle my-1 shrink-0 w-full" />
 
-      {/* Attack Config */}
-      <section className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-          <span className="text-[14px]">☠</span> Poisoning Attack
+      {/* Attack Config — dynamically rendered */}
+      <section className="flex flex-col gap-4 relative z-10">
+        <h3 className="eyebrow flex items-center gap-2">
+          <span>☠</span> Poisoning Attack
         </h3>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-[0.04em]">Poison Points</label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range" min="1" max="20" step="1"
-              value={numPoison}
-              className="range-slider"
-              onChange={e => setConfig({ numPoison: +e.target.value })}
-            />
-            <span className="font-mono text-xs text-[var(--text-accent)] bg-[var(--accent-muted)] px-2 py-px rounded-sm min-w-[36px] text-center">{numPoison}</span>
-          </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-[0.04em]">Step Size (η)</label>
-          <div className="flex items-center gap-2">
-            <input
-              type="range" min="0.05" max="2" step="0.05"
-              value={attackEta}
-              className="range-slider"
-              onChange={e => setConfig({ attackEta: +e.target.value })}
-            />
-            <span className="font-mono text-xs text-[var(--text-accent)] bg-[var(--accent-muted)] px-2 py-px rounded-sm min-w-[36px] text-center">{attackEta.toFixed(2)}</span>
-          </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-[0.04em]">Init Strategy</label>
-          <div className="relative after:content-['▾'] after:absolute after:right-2.5 after:top-1/2 after:-translate-y-1/2 after:text-[var(--text-tertiary)] after:pointer-events-none after:text-xs">
-            <select 
-              value={initStrategy} 
-              onChange={e => setConfig({ initStrategy: e.target.value })}
-              className="w-full appearance-none py-1.5 pr-8 pl-2.5 bg-[var(--bg-primary)] border border-[var(--border-default)] rounded-md text-[var(--text-primary)] text-sm cursor-pointer focus:border-[var(--accent-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)] [&>option]:bg-[var(--bg-secondary)]"
-            >
-              <option value="random">Random Flip</option>
-              <option value="furthest">Furthest from Boundary</option>
-              <option value="influential">Most Influential</option>
-            </select>
-          </div>
+        <div className="flex flex-col gap-3">
+          {attackFields.map(renderField)}
         </div>
         <button 
-          className="w-full py-2 px-4 rounded-md text-sm font-medium cursor-pointer transition-all duration-200 border-none flex items-center justify-center gap-1.5 bg-[var(--color-attack)] text-white hover:bg-[#dc2626] disabled:opacity-50 disabled:cursor-not-allowed" 
+          className="inline-flex w-full items-center justify-center rounded-md bg-attack px-4 py-2 mt-1 text-sm font-medium text-attack-foreground transition-colors duration-150 hover:bg-attack/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50" 
           onClick={onAttack} 
           disabled={isAttacking || isTraining}
         >
@@ -208,38 +245,42 @@ export default function ControlPanel({ onGenerate, onTrain, onAttack, onGenerate
         </button>
       </section>
 
-      <div className="h-[1px] bg-[var(--border-subtle)] my-1 shrink-0" />
+      <div className="h-px bg-border-subtle my-1 shrink-0 w-full" />
 
       {/* View Options */}
-      <section className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
-          <span className="text-[14px]">👁</span> View
+      <section className="flex flex-col gap-3 relative z-10">
+        <h3 className="eyebrow flex items-center gap-2 mb-1">
+          <span>👁</span> View
         </h3>
-        <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)] cursor-pointer select-none">
+        <label className="flex items-center gap-2.5 text-sm text-muted-foreground cursor-pointer select-none">
           <input
             type="checkbox"
             checked={showGradients}
             onChange={e => setConfig({ showGradients: e.target.checked })}
-            className="accent-[var(--accent-primary)] cursor-pointer w-3.5 h-3.5"
+            className="accent-primary cursor-pointer w-4 h-4 rounded border-input"
           />
           <span>Show Gradient Arrows</span>
         </label>
-        <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)] cursor-pointer select-none mt-1">
-          <input
-            type="checkbox"
-            checked={useStore.getState().showHeatmap}
-            onChange={e => setConfig({ showHeatmap: e.target.checked })}
-            className="accent-[var(--accent-primary)] cursor-pointer w-3.5 h-3.5"
-          />
-          <span>Show Objective Heatmap</span>
-        </label>
-        <button 
-          className="w-full py-2 px-4 mt-2 rounded-md text-sm font-medium cursor-pointer transition-all duration-200 border border-[var(--border-default)] flex items-center justify-center gap-1.5 bg-transparent text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50 disabled:cursor-not-allowed" 
-          onClick={onGenerateHeatmap} 
-          disabled={isAttacking || isTraining || useStore.getState().isGeneratingHeatmap}
-        >
-          {useStore.getState().isGeneratingHeatmap ? '⏳ Generating...' : '🗺️ Generate Heatmap'}
-        </button>
+        {!isRegression && (
+          <>
+            <label className="flex items-center gap-2.5 text-sm text-muted-foreground cursor-pointer select-none mt-1">
+              <input
+                type="checkbox"
+                checked={useStore.getState().showHeatmap}
+                onChange={e => setConfig({ showHeatmap: e.target.checked })}
+                className="accent-primary cursor-pointer w-4 h-4 rounded border-input"
+              />
+              <span>Show Objective Heatmap</span>
+            </label>
+            <button 
+              className="inline-flex w-full items-center justify-center rounded-md bg-secondary px-4 py-2 mt-2 text-sm font-medium text-secondary-foreground transition-colors duration-150 hover:bg-secondary/80 disabled:pointer-events-none disabled:opacity-50" 
+              onClick={onGenerateHeatmap} 
+              disabled={isAttacking || isTraining || useStore.getState().isGeneratingHeatmap}
+            >
+              {useStore.getState().isGeneratingHeatmap ? '⏳ Generating...' : '🗺️ Generate Heatmap'}
+            </button>
+          </>
+        )}
       </section>
     </aside>
   );

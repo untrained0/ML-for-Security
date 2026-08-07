@@ -45,31 +45,31 @@ export default function TutorialModal() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-[var(--bg-secondary)] border border-[var(--border-default)] rounded-xl shadow-2xl w-[500px] max-w-[90vw] overflow-hidden flex flex-col animate-[fadeIn_0.3s_ease-out]">
+      <div className="bg-card border border-border rounded-xl shadow-2xl w-[500px] max-w-[90vw] overflow-hidden flex flex-col animate-[fadeIn_0.3s_ease-out]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-tertiary)] flex items-center justify-between">
-          <h2 className="text-lg font-bold text-[var(--text-primary)] m-0">🎓 Interactive Tutorial</h2>
-          <button onClick={completeTutorial} className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer text-xl bg-transparent border-none">×</button>
+        <div className="px-6 py-4 border-b border-border-subtle bg-secondary flex items-center justify-between">
+          <h2 className="text-lg font-bold text-foreground m-0">🎓 Interactive Tutorial</h2>
+          <button onClick={completeTutorial} className="text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer text-xl bg-transparent border-none">×</button>
         </div>
         
         {/* Body */}
         <div className="p-6 flex flex-col gap-4 min-h-[160px]">
-          <h3 className="text-base font-semibold text-[var(--accent-primary)]">{steps[step].title}</h3>
-          <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{steps[step].content}</p>
+          <h3 className="text-base font-semibold text-primary">{steps[step].title}</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">{steps[step].content}</p>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-[var(--border-subtle)] bg-[var(--bg-primary)] flex items-center justify-between">
+        <div className="px-6 py-4 border-t border-border-subtle bg-background flex items-center justify-between">
           <div className="flex gap-1.5">
             {steps.map((_, i) => (
-              <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i === step ? 'bg-[var(--accent-primary)]' : 'bg-[var(--border-default)]'}`} />
+              <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i === step ? 'bg-primary' : 'bg-muted'}`} />
             ))}
           </div>
           <div className="flex gap-3">
             {step > 0 && (
               <button 
                 onClick={() => setStep(s => s - 1)}
-                className="px-4 py-1.5 rounded text-sm font-medium border border-[var(--border-default)] text-[var(--text-primary)] bg-transparent hover:bg-[var(--bg-tertiary)] cursor-pointer"
+                className="px-4 py-1.5 rounded text-sm font-medium border border-border text-foreground bg-transparent hover:bg-secondary cursor-pointer transition-colors duration-150"
               >
                 Back
               </button>
@@ -77,14 +77,14 @@ export default function TutorialModal() {
             {step < steps.length - 1 ? (
               <button 
                 onClick={() => setStep(s => s + 1)}
-                className="px-4 py-1.5 rounded text-sm font-medium border-none text-white bg-[var(--accent-primary)] hover:bg-[var(--accent-hover)] cursor-pointer"
+                className="px-4 py-1.5 rounded text-sm font-medium border-none text-white bg-primary hover:bg-primary/90 cursor-pointer"
               >
                 Next
               </button>
             ) : (
               <button 
                 onClick={completeTutorial}
-                className="px-4 py-1.5 rounded text-sm font-medium border-none text-white bg-[#059669] hover:bg-[#047857] cursor-pointer"
+                className="px-4 py-1.5 rounded text-sm font-medium border-none text-clean-foreground bg-clean hover:bg-clean/90 cursor-pointer transition-colors duration-150"
               >
                 Get Started!
               </button>

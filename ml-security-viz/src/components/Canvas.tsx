@@ -2,19 +2,24 @@
 import { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import useStore from '@/store/useStore';
-import { createKernel } from '@/engine/kernels';
-import { trainSVM, predict } from '@/engine/svm';
+import { createKernel } from '@/engine/architectures/biggio2012/kernels';
+import { trainSVM, predict } from '@/engine/architectures/biggio2012/model';
+import { getAlgorithm } from '@/engine/architectures';
+import PointInspector from './PointInspector';
+import PoisonImagePanel from './PoisonImagePanel';
 
 /**
- * Canvas component — D3 SVG scatter plot with decision boundary
- * Features infinite pan/zoom.
+ * Canvas component — D3 SVG scatter plot with decision boundary / regression line
+ * Features infinite pan/zoom. Adapts rendering based on active algorithm's modelType.
  */
 export default function Canvas({ currentState }: { currentState?: any }) {
   const { 
     dataset, cleanModel, kernelType, kernelGamma, svmC, 
     showGradients, showHeatmap, heatmapData, attackTrace, currentIteration,
-    setHoveredCanvasPoint 
+    setHoveredCanvasPoint, selectedPoint, setConfig, activeAlgorithm
   } = useStore();
+  const alg = getAlgorithm(activeAlgorithm);
+  const isRegression = alg.modelType === 'regression';
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
@@ -80,9 +85,9 @@ export default function Canvas({ currentState }: { currentState?: any }) {
     setHoveredCanvasPoint(null);
   };
 
-  // Compute decision boundary contour using the poisoned model if available
+  // Compute decision boundary contour (classification) or regression lines (regression)
   const boundaryPaths = useMemo(() => {
-    if (!dataset) return { clean: null, poisoned: null };
+    if (!dataset || isRegression) return { clean: null, poisoned: null };
     const kernelFn = createKernel({ type: kernelType, gamma: kernelGamma });
 
     const computeBoundary = (X: number[][], y: number[]) => {
@@ -114,7 +119,32 @@ export default function Canvas({ currentState }: { currentState?: any }) {
     }
 
     return { clean, poisoned };
-  }, [dataset, currentState, kernelType, kernelGamma, svmC, range, width, height]);
+  }, [dataset, currentState, kernelType, kernelGamma, svmC, range, width, height, isRegression]);
+
+  // Compute regression line paths (only in regression mode)
+  const regressionLines = useMemo(() => {
+    if (!dataset || !isRegression) return { clean: null, poisoned: null };
+    
+    const computeLinePath = (model: any) => {
+      if (!model || !model.theta) return null;
+      const steps = 200;
+      const points: string[] = [];
+      for (let i = 0; i <= steps; i++) {
+        const x = range.xMin + (range.xMax - range.xMin) * i / steps;
+        // theta = [w0, w1, ..., bias]
+        // For 1D: y = theta[0] * x + theta[1]
+        const yPred = model.theta[0] * x + model.theta[model.theta.length - 1];
+        const [sx, sy] = toSVG(x, yPred);
+        points.push(`${i === 0 ? 'M' : 'L'} ${sx.toFixed(2)},${sy.toFixed(2)}`);
+      }
+      return points.join(' ');
+    };
+
+    const cleanPath = cleanModel ? computeLinePath(cleanModel) : null;
+    const poisonedPath = currentState?.poisonedModel ? computeLinePath(currentState.poisonedModel) : null;
+
+    return { clean: cleanPath, poisoned: poisonedPath };
+  }, [dataset, cleanModel, currentState, isRegression, range, width, height]);
 
   const gridLines = useMemo(() => {
     const [xMinSvg, yMinSvg] = transform.invert([0, 0]);
@@ -198,12 +228,12 @@ export default function Canvas({ currentState }: { currentState?: any }) {
   return (
     <div className="relative w-full h-full overflow-hidden" ref={containerRef}>
       {!dataset && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-[var(--text-tertiary)] text-sm pointer-events-none z-20 bg-[var(--bg-canvas)]">
-          <div className="w-7 h-7 border-[3px] border-[var(--border-default)] border-t-[var(--accent-primary)] rounded-full animate-spin" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground/70 text-sm pointer-events-none z-20 bg-[var(--bg-canvas)]">
+          <div className="w-7 h-7 border-[3px] border-border border-t-[var(--accent-primary)] rounded-full animate-spin" />
           <p>Generating dataset...</p>
         </div>
       )}
-      <svg ref={svgRef} width={width} height={height} className="w-full h-full block cursor-grab active:cursor-grabbing" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+      <svg ref={svgRef} width={width} height={height} className="w-full h-full block cursor-grab active:cursor-grabbing" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave} onClick={() => { if (selectedPoint) setConfig({ selectedPoint: null }); }}>
         {dataset && (
           <g transform={`translate(${transform.x},${transform.y}) scale(${transform.k})`}>
             {/* Grid lines */}
@@ -257,32 +287,90 @@ export default function Canvas({ currentState }: { currentState?: any }) {
             </g>
           )}
 
-          {/* Clean decision boundary */}
-          {boundaryPaths.clean && (
+          {/* Clean decision boundary (classification) */}
+          {!isRegression && boundaryPaths.clean && (
             <path d={boundaryPaths.clean} className="fill-none stroke-[var(--color-clean)] opacity-70 [filter:drop-shadow(0_0_4px_var(--color-clean-dim))]" strokeWidth={2.5 * invK} strokeDasharray={`${6 * invK},${4 * invK}`} />
           )}
 
-          {/* Poisoned decision boundary */}
-          {boundaryPaths.poisoned && (
+          {/* Poisoned decision boundary (classification) */}
+          {!isRegression && boundaryPaths.poisoned && (
             <path d={boundaryPaths.poisoned} className="fill-none stroke-[var(--color-attack)] opacity-90 [filter:drop-shadow(0_0_6px_var(--color-attack-dim))] transition-[d] duration-400 ease-in-out" strokeWidth={2.5 * invK} />
           )}
 
-          {/* Training points */}
-          {train.X.map((pt: number[], i: number) => {
-            const [cx, cy] = toSVG(pt[0], pt[1]);
-            const isClassA = train.y[i] === 1;
+          {/* Clean regression line */}
+          {isRegression && regressionLines.clean && (
+            <path d={regressionLines.clean} className="fill-none stroke-[var(--color-clean)] opacity-80 [filter:drop-shadow(0_0_4px_var(--color-clean-dim))]" strokeWidth={2.5 * invK} strokeDasharray={`${6 * invK},${4 * invK}`} />
+          )}
+
+          {/* Poisoned regression line */}
+          {isRegression && regressionLines.poisoned && (
+            <path d={regressionLines.poisoned} className="fill-none stroke-[var(--color-attack)] opacity-90 [filter:drop-shadow(0_0_6px_var(--color-attack-dim))] transition-[d] duration-400 ease-in-out" strokeWidth={2.5 * invK} />
+          )}
+
+          {/* Residual whiskers (regression) */}
+          {isRegression && cleanModel && cleanModel.theta && train.X.map((pt: number[], i: number) => {
+            const x = pt[0];
+            const yActual = train.y[i];
+            const yPred = cleanModel.theta[0] * x + cleanModel.theta[cleanModel.theta.length - 1];
+            const [cx, cy] = toSVG(x, yActual);
+            const [, predY] = toSVG(x, yPred);
             return (
-              <circle
-                key={`train-${i}`}
-                cx={cx} cy={cy} r={4 * invK}
-                className={`stroke-[rgba(255,255,255,0.15)] transition-all duration-200 hover:brightness-125 hover:cursor-pointer ${isClassA ? 'fill-[var(--data-class-a)]' : 'fill-[var(--data-class-b)]'}`}
-                strokeWidth={1 * invK}
-              />
+              <line key={`resid-${i}`} x1={cx} y1={cy} x2={cx} y2={predY} className="stroke-[var(--text-tertiary)] opacity-30 pointer-events-none" strokeWidth={1 * invK} strokeDasharray={`${2 * invK},${2 * invK}`} />
             );
           })}
 
-          {/* Support vectors (from current model) */}
-          {((currentState && currentState.poisonedModel) || cleanModel) && ((currentState ? currentState.poisonedModel : cleanModel).supportVectors.map((sv: any, i: number) => {
+          {/* Training points */}
+          {train.X.map((pt: number[], i: number) => {
+            const isSelected = selectedPoint?.type === 'clean' && selectedPoint?.index === i;
+            if (isRegression) {
+              // Regression: 1D x, y is continuous — use gradient color
+              const x = pt[0];
+              const yVal = train.y[i];
+              const [cx, cy] = toSVG(x, yVal);
+              const t = (yVal - range.yMin) / (range.yMax - range.yMin);
+              const hue = 220 - t * 180; // blue(low) -> orange(high)
+              return (
+                <g key={`train-${i}`}>
+                  {isSelected && (
+                    <circle cx={cx} cy={cy} r={8 * invK} className="fill-none stroke-yellow-400 animate-pulse pointer-events-none" strokeWidth={2 * invK} />
+                  )}
+                  <circle
+                    cx={cx} cy={cy} r={4 * invK}
+                    fill={`hsl(${hue}, 75%, 55%)`}
+                    className={`stroke-[rgba(255,255,255,0.2)] transition-all duration-200 hover:brightness-125 hover:cursor-pointer ${isSelected ? '!stroke-yellow-400' : ''}`}
+                    strokeWidth={(isSelected ? 2 : 1) * invK}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfig({ selectedPoint: { type: 'clean', index: i } });
+                    }}
+                  />
+                </g>
+              );
+            } else {
+              // Classification: binary color
+              const [cx, cy] = toSVG(pt[0], pt[1]);
+              const isClassA = train.y[i] === 1;
+              return (
+                <g key={`train-${i}`}>
+                  {isSelected && (
+                    <circle cx={cx} cy={cy} r={8 * invK} className="fill-none stroke-yellow-400 animate-pulse pointer-events-none" strokeWidth={2 * invK} />
+                  )}
+                  <circle
+                    cx={cx} cy={cy} r={4 * invK}
+                    className={`stroke-[rgba(255,255,255,0.15)] transition-all duration-200 hover:brightness-125 hover:cursor-pointer ${isClassA ? 'fill-[var(--data-class-a)]' : 'fill-[var(--data-class-b)]'} ${isSelected ? 'stroke-yellow-400 stroke-[2px]' : ''}`}
+                    strokeWidth={(isSelected ? 2 : 1) * invK}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfig({ selectedPoint: { type: 'clean', index: i } });
+                    }}
+                  />
+                </g>
+              );
+            }
+          })}
+
+          {/* Support vectors (classification only) */}
+          {!isRegression && ((currentState && currentState.poisonedModel) || cleanModel) && ((currentState ? currentState.poisonedModel : cleanModel).supportVectors?.map((sv: any, i: number) => {
             const [cx, cy] = toSVG(sv.point[0], sv.point[1]);
             return (
               <circle
@@ -294,12 +382,12 @@ export default function Canvas({ currentState }: { currentState?: any }) {
             );
           }))}
 
-          {/* Gained Support Vectors (Flash Yellow) */}
-          {currentState && currentState.gainedSVs && currentState.gainedSVs.map((pt: number[], i: number) => {
+          {/* Gained Support Vectors (Flash Yellow) — classification only */}
+          {!isRegression && currentState && currentState.gainedSVs && currentState.gainedSVs.map((pt: number[], i: number) => {
             const [cx, cy] = toSVG(pt[0], pt[1]);
             return (
               <circle
-                key={`gained-sv-${currentState.iteration}-${i}`} // Key includes iteration to re-trigger animation
+                key={`gained-sv-${currentState.iteration}-${i}`}
                 cx={cx} cy={cy} r={12 * invK}
                 className="fill-none stroke-yellow-400 pointer-events-none animate-[ping_1s_ease-out_1]"
                 strokeWidth={3 * invK}
@@ -307,8 +395,8 @@ export default function Canvas({ currentState }: { currentState?: any }) {
             );
           })}
 
-          {/* Lost Support Vectors (Flash Red) */}
-          {currentState && currentState.lostSVs && currentState.lostSVs.map((pt: number[], i: number) => {
+          {/* Lost Support Vectors (Flash Red) — classification only */}
+          {!isRegression && currentState && currentState.lostSVs && currentState.lostSVs.map((pt: number[], i: number) => {
             const [cx, cy] = toSVG(pt[0], pt[1]);
             return (
               <circle
@@ -343,13 +431,24 @@ export default function Canvas({ currentState }: { currentState?: any }) {
 
           {/* Poison points */}
           {currentState && currentState.poisonX && currentState.poisonX.map((pt: number[], i: number) => {
-            const [cx, cy] = toSVG(pt[0], pt[1]);
+            // For regression, poison points are 1D: [x], and poisonY[i] is the y coordinate
+            const px = pt[0];
+            const py = isRegression ? currentState.poisonY[i] : pt[1];
+            const [cx, cy] = toSVG(px, py);
+            const isSelected = selectedPoint?.type === 'poison' && selectedPoint?.index === i;
             return (
               <g key={`poison-${i}`}>
+                {isSelected && (
+                  <circle cx={cx} cy={cy} r={12 * invK} className="fill-none stroke-yellow-400 animate-pulse pointer-events-none" strokeWidth={2 * invK} />
+                )}
                 <circle
                   cx={cx} cy={cy} r={6 * invK}
-                  className="fill-[var(--data-poison)] stroke-white"
+                  className={`fill-[var(--data-poison)] stroke-white hover:cursor-pointer hover:brightness-125 transition-all duration-200 ${isSelected ? '!stroke-yellow-400' : ''}`}
                   strokeWidth={2 * invK}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfig({ selectedPoint: { type: 'poison', index: i } });
+                  }}
                 />
                 <circle
                   cx={cx} cy={cy} r={8 * invK}
@@ -394,39 +493,55 @@ export default function Canvas({ currentState }: { currentState?: any }) {
       </svg>
 
       {/* Legend */}
-      <div className="absolute bottom-4 right-4 bg-[var(--bg-primary)] border border-[var(--border-default)] p-3 rounded-lg flex flex-col gap-2 shadow-lg z-10 pointer-events-none">
-        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-          <span className="w-2.5 h-2.5 rounded-full bg-[var(--data-class-a)]" /> Class +1
-        </div>
-        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-          <span className="w-2.5 h-2.5 rounded-full bg-[var(--data-class-b)]" /> Class −1
-        </div>
-        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-          <span className="w-2.5 h-2.5 rounded-full border-2 border-[var(--data-support)]" /> Support Vector
-        </div>
+      <div className="absolute bottom-4 right-4 bg-[rgba(10,14,23,0.85)] backdrop-blur-md border border-border p-3 rounded-lg flex flex-col gap-2 shadow-lg z-10 pointer-events-none">
+        {isRegression ? (
+          <>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'hsl(220, 75%, 55%)' }} /> Low y
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'hsl(40, 75%, 55%)' }} /> High y
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="w-2.5 h-2.5 rounded-full bg-data-class-a" /> Class +1
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="w-2.5 h-2.5 rounded-full bg-data-class-b" /> Class −1
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="w-2.5 h-2.5 rounded-full border-2 border-[var(--data-support)]" /> Support Vector
+            </div>
+          </>
+        )}
         {currentState && (
-          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-            <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-attack)]" /> Poison Point
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="w-2.5 h-2.5 rounded-full bg-attack" /> Poison Point
           </div>
         )}
-        {boundaryPaths.clean && (
-          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-            <span className="w-4 h-[2px] bg-[var(--color-clean)] opacity-70" /> Clean Boundary
+        {(boundaryPaths.clean || regressionLines.clean) && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="w-4 h-[2px] bg-clean opacity-70" /> {isRegression ? 'Clean Fit' : 'Clean Boundary'}
           </div>
         )}
-        {boundaryPaths.poisoned && (
-          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-            <span className="w-4 h-[2px] bg-[var(--color-attack)]" /> Poisoned Boundary
+        {(boundaryPaths.poisoned || regressionLines.poisoned) && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="w-4 h-[2px] bg-attack" /> {isRegression ? 'Poisoned Fit' : 'Poisoned Boundary'}
           </div>
         )}
       </div>
 
       {/* Iteration badge */}
       {currentState && (
-        <div className="absolute top-4 left-4 bg-[var(--bg-active)] border border-[var(--border-default)] px-3 py-1.5 rounded-md font-mono text-sm text-[var(--accent-primary)] shadow z-10 pointer-events-none">
+        <div className="absolute top-4 left-4 bg-secondary border border-border px-3 py-1.5 rounded-md font-mono text-sm text-primary shadow z-10 pointer-events-none">
           Iteration {currentState.iteration}
         </div>
       )}
+
+      <PointInspector />
+      <PoisonImagePanel currentState={currentState} />
     </div>
   );
 }

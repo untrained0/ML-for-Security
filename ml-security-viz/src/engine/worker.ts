@@ -1,6 +1,6 @@
-import { createKernel } from './kernels';
-import { initializePoisonPoints, attackerObjective, poisonIteration, computeGradient } from './poisoning';
-import { trainSVM, accuracy } from './svm';
+import { createKernel } from './architectures/biggio2012/kernels';
+import { initializePoisonPoints, attackerObjective, poisonIteration, computeGradient } from './architectures/biggio2012/attack';
+import { trainSVM, accuracy } from './architectures/biggio2012/model';
 import { vsub, norm } from './linalg';
 
 function stripKernelFn(obj: any) {

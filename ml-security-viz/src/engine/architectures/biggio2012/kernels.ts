@@ -2,7 +2,7 @@
  * kernels.js — Kernel functions for SVM
  */
 
-import { dot, dist2 } from './linalg';
+import { dot, dist2 } from '../../linalg';
 
 /** Linear kernel: K(x,y) = x·y */
 export function linearKernel(x, y) { return dot(x, y); }

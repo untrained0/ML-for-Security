@@ -4,7 +4,7 @@
  * and to ~20 dims for efficient SVM training
  */
 
-import { zeros, transpose, mmul, colMean } from './linalg';
+import { zeros, transpose, mmul, colMean } from '../../linalg';
 
 /**
  * Perform PCA on a data matrix X (n × d)

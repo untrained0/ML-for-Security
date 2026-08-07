@@ -2,11 +2,9 @@
 
 import { useEffect, useCallback } from 'react';
 import useStore from '@/store/useStore';
-import { DATASETS, splitDataset } from '@/engine/datasets';
-import { createKernel } from '@/engine/kernels';
-import { trainSVM, getModelState } from '@/engine/svm';
-import { initializePoisonPoints, poisonIteration, attackerObjective } from '@/engine/poisoning';
-import { accuracy } from '@/engine/svm';
+import { DATASETS, splitDataset } from '@/engine/data/datasets';
+import { getAlgorithm } from '@/engine/architectures';
+import { createKernel } from '@/engine/architectures/biggio2012/kernels';
 import AppHeader from '@/components/AppHeader';
 import ControlPanel from '@/components/ControlPanel';
 import Canvas from '@/components/Canvas';
@@ -15,11 +13,12 @@ import InverseImagePanel from '@/components/InverseImagePanel';
 import PlaybackBar from '@/components/PlaybackBar';
 import Timeline from '@/components/Timeline';
 import TutorialModal from '@/components/TutorialModal';
+import GuidedTour from '@/components/GuidedTour';
 
 export default function Home() {
   const {
-    datasetKey, numPoints, kernelType, kernelGamma, svmC,
-    numPoison, attackEta, attackBeta, attackMaxIter, initStrategy,
+    activeAlgorithm, algorithmConfig,
+    datasetKey, numPoints,
     dataset, cleanModel, attackTrace, currentIteration,
     isPlaying, isTraining, isAttacking, playbackSpeed,
     showLeftPanel, showRightPanel,
@@ -27,18 +26,32 @@ export default function Home() {
     stepForward, togglePlay, setPlaying, setTraining, setAttacking, reset,
   } = useStore();
 
+  const alg = getAlgorithm(activeAlgorithm);
+
+  // Build merged config: algorithm defaults + legacy store fields + user overrides
+  const getMergedConfig = useCallback(() => {
+    const state = useStore.getState() as any;
+    const merged = { ...alg.defaultConfig };
+    // Overlay legacy store fields
+    for (const field of alg.configSchema) {
+      if (state[field.key] !== undefined) merged[field.key] = state[field.key];
+    }
+    // Overlay explicit algorithmConfig
+    Object.assign(merged, algorithmConfig);
+    return merged;
+  }, [alg, algorithmConfig]);
+
   // Generate dataset
   const generateDataset = useCallback(() => {
     const gen = DATASETS[datasetKey];
     if (!gen) return;
     
     if (gen.isMNIST) {
-      import('@/engine/mnist').then(({ createMNISTDataset }) => {
-        import('@/engine/datasets').then(({ splitDatasetWithImages }) => {
-          // Use 2D for SVM so it can be visualized on the canvas
+      import('@/engine/data/loaders/mnist').then(({ createMNISTDataset }) => {
+        import('@/engine/data/datasets').then(({ splitDatasetWithImages }) => {
           const raw = createMNISTDataset(numPoints, 2); 
           const split = splitDatasetWithImages(raw);
-          setDataset(split, raw); // Pass raw data for pcaState
+          setDataset(split, raw);
         });
       });
     } else {
@@ -48,77 +61,96 @@ export default function Home() {
     }
   }, [datasetKey, numPoints, setDataset]);
 
-  // Train clean SVM
+  // Train clean model — dispatches to the active algorithm
   const trainCleanModel = useCallback(() => {
     if (!dataset) return;
     setTraining(true);
-    // Use setTimeout to avoid blocking UI
     setTimeout(() => {
       try {
-        const kernelFn = createKernel({ type: kernelType, gamma: kernelGamma });
-        const model = trainSVM(dataset.train.X, dataset.train.y, kernelFn, svmC);
-        const state: any = getModelState(model);
-        state.testAccuracy = accuracy(model, dataset.test.X, dataset.test.y);
-        state.rawModel = model;
-        setCleanModel(state);
+        const config = getMergedConfig();
+        const { modelState, rawModel } = alg.trainClean(dataset, config);
+        modelState.rawModel = rawModel;
+        setCleanModel(modelState);
       } catch (e) {
         console.error('Training error:', e);
       }
       setTraining(false);
     }, 50);
-  }, [dataset, kernelType, kernelGamma, svmC, setCleanModel, setTraining]);
+  }, [dataset, alg, getMergedConfig, setCleanModel, setTraining]);
 
-  // Run poisoning attack using Web Worker
+  // Run poisoning attack — dispatches to the active algorithm
   const runAttack = useCallback(() => {
     if (!dataset || !cleanModel) return;
     
-    // Reset trace before streaming new attack
     setAttackTrace([]);
     setAttacking(true);
 
-    const worker = new Worker(new URL('../engine/worker', import.meta.url));
+    const config = getMergedConfig();
 
-    worker.onmessage = (e) => {
-      const { type, payload } = e.data;
-      
-      if (type === 'PROGRESS') {
-        const frame = payload;
-        // Re-attach kernel function to raw model since functions can't be sent over postMessage
-        if (frame.poisonedRawModel) {
-          frame.poisonedRawModel.kernelFn = createKernel({ type: kernelType, gamma: kernelGamma });
+    // For biggio2012, if using web worker for SVM attack, keep the old worker path
+    // For new algorithms, use the module's runAttack directly
+    if (alg.key === 'biggio2012') {
+      // Use web worker for SVM to avoid blocking UI (existing behavior)
+      const worker = new Worker(new URL('../engine/worker', import.meta.url));
+
+      worker.onmessage = (e) => {
+        const { type, payload } = e.data;
+        
+        if (type === 'PROGRESS') {
+          const frame = payload;
+          if (frame.poisonedRawModel) {
+            frame.poisonedRawModel.kernelFn = createKernel({ type: config.kernelType, gamma: config.kernelGamma });
+          }
+          useStore.getState().appendAttackTraceFrame(frame);
+        } else if (type === 'COMPLETE') {
+          setAttacking(false);
+          worker.terminate();
+        } else if (type === 'ERROR') {
+          console.error('Attack error from worker:', payload);
+          setAttacking(false);
+          worker.terminate();
         }
-        useStore.getState().appendAttackTraceFrame(frame);
-      } else if (type === 'COMPLETE') {
-        setAttacking(false);
-        worker.terminate();
-      } else if (type === 'ERROR') {
-        console.error('Attack error from worker:', payload);
-        setAttacking(false);
-        worker.terminate();
-      }
-    };
+      };
 
-    worker.postMessage({
-      type: 'START_ATTACK',
-      payload: {
+      worker.postMessage({
+        type: 'START_ATTACK',
+        payload: {
+          dataset,
+          cleanModelAccuracy: cleanModel.testAccuracy,
+          kernelType: config.kernelType,
+          kernelGamma: config.kernelGamma,
+          svmC: config.svmC,
+          numPoison: config.numPoison,
+          initStrategy: config.initStrategy,
+          attackMaxIter: config.attackMaxIter,
+          attackEta: config.attackEta,
+          attackBeta: config.attackBeta,
+        }
+      });
+    } else {
+      // Use the algorithm module's runAttack directly (runs async via setTimeout)
+      alg.runAttack(
         dataset,
-        cleanModelAccuracy: cleanModel.testAccuracy,
-        kernelType,
-        kernelGamma,
-        svmC,
-        numPoison,
-        initStrategy,
-        attackMaxIter,
-        attackEta,
-        attackBeta
-      }
-    });
+        cleanModel,
+        config,
+        (frame) => {
+          useStore.getState().appendAttackTraceFrame(frame);
+        },
+        () => {
+          setAttacking(false);
+        },
+        (msg) => {
+          console.error('Attack error:', msg);
+          setAttacking(false);
+        }
+      );
+    }
+  }, [dataset, cleanModel, alg, getMergedConfig, setAttackTrace, setAttacking]);
 
-  }, [dataset, cleanModel, kernelType, kernelGamma, svmC, numPoison, initStrategy, attackMaxIter, attackEta, attackBeta, setAttackTrace, setAttacking]);
-
-  // Generate heatmap using Web Worker
+  // Generate heatmap (SVM only)
   const generateHeatmap = useCallback(() => {
-    if (!dataset || !cleanModel) return;
+    if (!dataset || !cleanModel || alg.modelType !== 'classification') return;
+    const config = getMergedConfig();
     
     useStore.getState().setConfig({ isGeneratingHeatmap: true, showHeatmap: true });
 
@@ -144,17 +176,16 @@ export default function Home() {
       type: 'COMPUTE_HEATMAP',
       payload: {
         dataset,
-        kernelType,
-        kernelGamma,
-        svmC,
-        // Since heatmap calculation scales by grid size, we use a coarse grid (e.g., 20x20)
+        kernelType: config.kernelType,
+        kernelGamma: config.kernelGamma,
+        svmC: config.svmC,
         gridResolution: 15,
       }
     });
 
-  }, [dataset, cleanModel, kernelType, kernelGamma, svmC]);
+  }, [dataset, cleanModel, alg, getMergedConfig]);
 
-  // Auto-generate dataset on first load
+  // Auto-generate dataset on first load and when algorithm changes
   useEffect(() => {
     generateDataset();
   }, [generateDataset]);
@@ -211,10 +242,10 @@ export default function Home() {
           )}
         </div>
         <div className="flex flex-col overflow-hidden min-h-0">
-          <div className="flex-1 relative overflow-hidden bg-[var(--bg-canvas)] min-h-0">
+          <div className="flex-1 relative overflow-hidden bg-background min-h-0">
             <Canvas currentState={currentState} />
           </div>
-          <div className="h-[180px] min-h-[140px] bg-[var(--bg-secondary)] border-t border-[var(--border-subtle)] p-4">
+          <div className="h-[180px] min-h-[140px] bg-secondary border-t border-border-subtle p-4">
             <Timeline />
           </div>
         </div>
@@ -224,6 +255,7 @@ export default function Home() {
         </div>
       </main>
       <TutorialModal />
+      <GuidedTour />
     </div>
   );
 }

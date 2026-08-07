@@ -136,7 +136,72 @@ export function splitDatasetWithImages({ X2D, Xsvm, y, images, labels }, trainR 
   };
 }
 
-export const DATASETS = {
+// ── Regression Dataset Generators ──
+
+function normalizeRegression({ X, y }: { X: number[][], y: number[] }) {
+  const d = X[0].length;
+  const mins = new Array(d).fill(Infinity);
+  const maxs = new Array(d).fill(-Infinity);
+  for (const x of X) for (let j = 0; j < d; j++) {
+    if (x[j] < mins[j]) mins[j] = x[j];
+    if (x[j] > maxs[j]) maxs[j] = x[j];
+  }
+  const nX = X.map(x => x.map((v, j) => ((v - mins[j]) / (maxs[j] - mins[j] || 1)) * 4 - 2));
+  // Normalize y to roughly [-2, 2]
+  const yMin = Math.min(...y), yMax = Math.max(...y);
+  const nY = y.map(v => ((v - yMin) / (yMax - yMin || 1)) * 4 - 2);
+  return { X: nX, y: nY };
+}
+
+export function makeLinearRegression(n = 100, noise = 0.3) {
+  const X: number[][] = [], y: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const x = (Math.random() * 4 - 2);
+    X.push([x]);
+    y.push(2 * x + 1 + randNormal() * noise);
+  }
+  return normalizeRegression({ X, y });
+}
+
+export function makeQuadraticRegression(n = 100, noise = 0.3) {
+  const X: number[][] = [], y: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const x = (Math.random() * 4 - 2);
+    X.push([x]);
+    y.push(x * x + randNormal() * noise);
+  }
+  return normalizeRegression({ X, y });
+}
+
+export function makeSinRegression(n = 100, noise = 0.2) {
+  const X: number[][] = [], y: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const x = (Math.random() * 4 - 2);
+    X.push([x]);
+    y.push(Math.sin(2 * x) + randNormal() * noise);
+  }
+  return normalizeRegression({ X, y });
+}
+
+import warfarinData from './raw/warfarin.json';
+import lendingClubData from './raw/lendingClub.json';
+import housePricingData from './raw/housePricing.json';
+
+// Jagielski 2018 Real-world datasets
+
+export function makeWarfarinDataset(n = 100, noise = 0.4) {
+  return warfarinData;
+}
+
+export function makeLendingClubDataset(n = 100, noise = 0.2) {
+  return lendingClubData;
+}
+
+export function makeHousePricingDataset(n = 100, noise = 0.3) {
+  return housePricingData;
+}
+
+export const DATASETS: Record<string, any> = {
   moons:    { name: 'Moons',    fn: makeMoons,    icon: '🌙', desc: 'Two interleaving crescents' },
   circles:  { name: 'Circles',  fn: makeCircles,  icon: '⭕', desc: 'Concentric rings' },
   blobs:    { name: 'Blobs',    fn: makeBlobs,     icon: '🫧', desc: 'Linearly separable clusters' },
@@ -144,5 +209,15 @@ export const DATASETS = {
   gaussian: { name: 'Gaussian', fn: makeGaussian,  icon: '📊', desc: 'Overlapping Gaussians' },
   spiral:   { name: 'Spiral',   fn: makeSpiral,    icon: '🌀', desc: 'Interleaving spirals' },
   mnist:    { name: 'MNIST 1v7', fn: null, icon: '🔢', desc: 'Handwritten digits 1 vs 7 (Biggio 2012)', isMNIST: true },
+  
+  // Regression datasets
+  linearReg:    { name: 'Linear',    fn: makeLinearRegression,    icon: '📈', desc: 'y = 2x + 1 + ε', isRegression: true },
+  quadraticReg: { name: 'Quadratic', fn: makeQuadraticRegression, icon: '📐', desc: 'y = x² + ε',     isRegression: true },
+  sinReg:       { name: 'Sine',      fn: makeSinRegression,       icon: '〰️', desc: 'y = sin(2x) + ε', isRegression: true },
+  
+  // Real-world Approximations (Jagielski 2018)
+  warfarin: { name: 'Warfarin (Health)', fn: makeWarfarinDataset, icon: '💊', desc: 'Age/BMI vs Dosage (Jagielski 2018)', isRegression: true },
+  lendingClub: { name: 'Lending Club', fn: makeLendingClubDataset, icon: '💸', desc: 'Credit Score vs Interest Rate (Jagielski 2018)', isRegression: true },
+  housePricing: { name: 'House Pricing', fn: makeHousePricingDataset, icon: '🏠', desc: 'SqFt vs Price [Heteroscedastic] (Jagielski 2018)', isRegression: true },
 };
 

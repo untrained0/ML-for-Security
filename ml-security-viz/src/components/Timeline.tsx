@@ -1,36 +1,53 @@
 'use client';
 import { useMemo } from 'react';
 import useStore from '@/store/useStore';
+import { getAlgorithm } from '@/engine/architectures';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Legend
 } from 'recharts';
 
 /**
- * Timeline — Loss and accuracy charts tracking the attack progression
+ * Timeline — Loss and accuracy/MSE charts tracking the attack progression
  */
 export default function Timeline() {
-  const { attackTrace, currentIteration } = useStore();
+  const { attackTrace, currentIteration, activeAlgorithm } = useStore();
+  const alg = getAlgorithm(activeAlgorithm);
+  const isRegression = alg.modelType === 'regression';
 
   const chartData = useMemo(() => {
     if (!attackTrace || attackTrace.length === 0) return [];
-    return attackTrace.map(s => ({
-      iteration: s.iteration,
-      objective: parseFloat(s.objectiveValue.toFixed(5)),
-      accuracy: parseFloat((s.poisonedAccuracy * 100).toFixed(1)),
-      cleanAcc: parseFloat((s.cleanAccuracy * 100).toFixed(1)),
-      hingeLoss: s.poisonedModel ? parseFloat(s.poisonedModel.hingeLoss.toFixed(4)) : 0,
-      deltaW: s.deltaW !== undefined ? parseFloat(s.deltaW.toFixed(4)) : 0,
-    }));
-  }, [attackTrace]);
+    return attackTrace.map(s => {
+      if (isRegression) {
+        return {
+          iteration: s.iteration,
+          objective: parseFloat((s.objectiveValue || 0).toFixed(5)),
+          mse: parseFloat((s.poisonedMSE || 0).toFixed(4)),
+          cleanMSE: parseFloat((s.cleanMSE || 0).toFixed(4)),
+          deltaW: s.deltaW !== undefined ? parseFloat(s.deltaW.toFixed(4)) : 0,
+        };
+      } else {
+        return {
+          iteration: s.iteration,
+          objective: parseFloat((s.objectiveValue || 0).toFixed(5)),
+          accuracy: parseFloat(((s.poisonedAccuracy || 0) * 100).toFixed(1)),
+          cleanAcc: parseFloat(((s.cleanAccuracy || 0) * 100).toFixed(1)),
+          hingeLoss: s.poisonedModel && s.poisonedModel.hingeLoss !== undefined 
+            ? parseFloat(s.poisonedModel.hingeLoss.toFixed(4)) 
+            : 0,
+          deltaW: s.deltaW !== undefined ? parseFloat(s.deltaW.toFixed(4)) : 0,
+        };
+      }
+    });
+  }, [attackTrace, isRegression]);
 
   if (chartData.length === 0) {
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm text-[var(--text-secondary)] font-medium uppercase tracking-[0.04em]">📈 Attack Timeline</h4>
+          <h4 className="text-sm text-muted-foreground font-medium uppercase tracking-[0.04em]">📈 Attack Timeline</h4>
         </div>
-        <div className="flex-1 flex items-center justify-center text-[var(--text-tertiary)] text-xs">
+        <div className="flex-1 flex items-center justify-center text-muted-foreground/70 text-xs">
           <p>Run a poisoning attack to see metrics over iterations</p>
         </div>
       </div>
@@ -40,12 +57,23 @@ export default function Timeline() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-sm text-[var(--text-secondary)] font-medium uppercase tracking-[0.04em]">📈 Attack Timeline</h4>
+        <h4 className="text-sm text-muted-foreground font-medium uppercase tracking-[0.04em]">📈 Attack Timeline</h4>
         <div className="flex gap-2">
-          <span className="font-mono text-[10px] font-medium text-[var(--color-clean)] bg-[var(--color-clean-dim)] px-2 py-0.5 rounded-full">Clean: {chartData[0]?.cleanAcc}%</span>
-          <span className="font-mono text-[10px] font-medium text-[var(--color-attack)] bg-[var(--color-attack-dim)] px-2 py-0.5 rounded-full">
-            Poisoned: {chartData[chartData.length - 1]?.accuracy}%
-          </span>
+          {isRegression ? (
+            <>
+              <span className="font-mono text-[10px] font-medium text-clean bg-clean/10 px-2 py-0.5 rounded-full">Clean MSE: {chartData[0]?.cleanMSE}</span>
+              <span className="font-mono text-[10px] font-medium text-attack bg-attack/10 px-2 py-0.5 rounded-full">
+                Poisoned MSE: {chartData[chartData.length - 1]?.mse}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="font-mono text-[10px] font-medium text-clean bg-clean/10 px-2 py-0.5 rounded-full">Clean: {chartData[0]?.cleanAcc}%</span>
+              <span className="font-mono text-[10px] font-medium text-attack bg-attack/10 px-2 py-0.5 rounded-full">
+                Poisoned: {chartData[chartData.length - 1]?.accuracy}%
+              </span>
+            </>
+          )}
         </div>
       </div>
       <div className="flex-1 min-h-0">
@@ -63,13 +91,13 @@ export default function Timeline() {
               tickLine={false}
             />
             <YAxis
-              yAxisId="acc"
+              yAxisId="primary"
               orientation="left"
               tick={{ fill: '#64748b', fontSize: 10 }}
               axisLine={false}
               tickLine={false}
-              domain={[0, 100]}
-              label={{ value: 'Accuracy %', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 10 }}
+              domain={isRegression ? ['auto', 'auto'] : [0, 100]}
+              label={{ value: isRegression ? 'Test MSE' : 'Accuracy %', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 10 }}
             />
             <YAxis
               yAxisId="loss"
@@ -100,6 +128,8 @@ export default function Timeline() {
                 const labels: any = {
                   accuracy: ['Poisoned Acc', '%'],
                   cleanAcc: ['Clean Acc', '%'],
+                  mse: ['Poisoned MSE', ''],
+                  cleanMSE: ['Clean MSE', ''],
                   objective: ['Objective', ''],
                   deltaW: ['Δw', ''],
                 };
@@ -110,16 +140,23 @@ export default function Timeline() {
             <Legend
               wrapperStyle={{ fontSize: '11px', color: '#94a3b8' }}
               formatter={(value) => {
-                const names: any = { accuracy: 'Poisoned Accuracy', cleanAcc: 'Clean Accuracy', objective: 'Objective', deltaW: 'Δw' };
+                const names: any = { 
+                  accuracy: 'Poisoned Accuracy', 
+                  cleanAcc: 'Clean Accuracy', 
+                  mse: 'Poisoned MSE',
+                  cleanMSE: 'Clean MSE',
+                  objective: 'Objective', 
+                  deltaW: 'Δw' 
+                };
                 return names[value as string] || value;
               }}
             />
 
-            {/* Clean accuracy baseline */}
+            {/* Clean baseline */}
             <Line
-              yAxisId="acc"
+              yAxisId="primary"
               type="monotone"
-              dataKey="cleanAcc"
+              dataKey={isRegression ? "cleanMSE" : "cleanAcc"}
               stroke="#10b981"
               strokeWidth={1.5}
               strokeDasharray="5 5"
@@ -127,11 +164,11 @@ export default function Timeline() {
               activeDot={false}
             />
 
-            {/* Poisoned accuracy */}
+            {/* Poisoned metric */}
             <Line
-              yAxisId="acc"
+              yAxisId="primary"
               type="monotone"
-              dataKey="accuracy"
+              dataKey={isRegression ? "mse" : "accuracy"}
               stroke="#ef4444"
               strokeWidth={2}
               dot={(props: any) => {
@@ -176,7 +213,7 @@ export default function Timeline() {
             {/* Current iteration marker */}
             <ReferenceLine
               x={currentIteration}
-              yAxisId="acc"
+              yAxisId="primary"
               stroke="rgba(255,255,255,0.2)"
               strokeDasharray="3 3"
             />

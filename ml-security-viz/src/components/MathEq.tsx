@@ -38,7 +38,7 @@ export default function MathEq({ math, inline = true, tooltip }: MathEqProps) {
     <div className="relative inline-block">
       {wrapper}
       {showTooltip && (
-        <div className="absolute z-50 w-48 p-2 mt-1 text-xs text-[var(--text-primary)] bg-[var(--bg-primary)] border border-[var(--border-default)] rounded shadow-lg left-1/2 -translate-x-1/2 before:content-[''] before:absolute before:-top-1 before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-b-[var(--border-default)]">
+        <div className="absolute z-50 w-48 p-2 mt-1 text-xs text-foreground bg-background border border-border rounded shadow-lg left-1/2 -translate-x-1/2 before:content-[''] before:absolute before:-top-1 before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-b-[var(--border-default)]">
           {tooltip}
         </div>
       )}

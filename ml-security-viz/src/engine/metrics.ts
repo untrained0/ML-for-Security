@@ -1,4 +1,4 @@
-import { predictClass } from './svm';
+import { predictClass } from './architectures/biggio2012/model';
 
 export function computeMetrics(model: any, X: number[][], y: number[]) {
   let tp = 0, tn = 0, fp = 0, fn = 0;

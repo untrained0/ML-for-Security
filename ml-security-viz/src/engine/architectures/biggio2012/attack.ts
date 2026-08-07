@@ -3,8 +3,8 @@
  * Biggio et al., "Poisoning Attacks against Support Vector Machines" (arXiv:1206.6389)
  */
 
-import { trainSVM, predict, accuracy, hingeLoss, getModelState } from './svm';
-import { norm, scale, vadd } from './linalg';
+import { trainSVM, predict, accuracy, hingeLoss, getModelState } from './model';
+import { norm, scale, vadd } from '../../linalg';
 
 /**
  * Initialize poison points using the chosen strategy
