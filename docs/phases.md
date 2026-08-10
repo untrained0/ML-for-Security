@@ -82,10 +82,10 @@
 
 | # | Task | Deliverable |
 |---|---|---|
-| 5.1 | Export as PNG / SVG | Screenshot of canvas + charts |
-| 5.2 | Export attack trace as JSON | Full reproducibility data |
-| 5.3 | CSV dataset upload | Parse and validate user CSV files |
-| 5.4 | Add onboarding tutorial | Guided walkthrough for first-time users |
+| 5.1 | ~~Export as PNG / SVG~~ ✅ | Screenshot of canvas + charts |
+| 5.2 | ~~Export attack trace as JSON~~ ✅ | Full reproducibility data |
+| 5.3 | ~~CSV dataset upload~~ ✅ | Parse and validate user CSV files |
+| 5.4 | ~~Add onboarding tutorial~~ ✅ | Guided walkthrough for first-time users |
 | 5.5 | Performance optimization | Profile and optimize for datasets up to 5,000 points |
 | 5.6 | Cross-browser testing | Chrome, Firefox, Edge (latest 2 versions) |
 | 5.7 | Write user documentation | README, usage guide, mathematical references |
@@ -93,7 +93,7 @@
 
 ---
 
-## Phase 6 — Multi-Attack Framework (Future)
+## Phase 6 — Multi-Attack Framework
 
 > **Goal**: Extend beyond SVM poisoning to a general adversarial ML visualization platform.
 
@@ -103,5 +103,48 @@
 | 6.2 | Evasion attack (FGSM-style) | Show adversarial perturbation at test time |
 | 6.3 | Backdoor attack | Visualize trigger injection and model behavior |
 | 6.4 | Defense visualizations | TRIM, RONI, data sanitization overlays |
-| 6.5 | Regression poisoning | Integrate with existing PoisonRegression codebase |
-| 6.6 | Paper replication dashboard | Per-paper view with side-by-side figure comparison |
+| 6.5 | ~~Regression poisoning~~ ✅ | Jagielski et al. 2018 — Ridge/LASSO/OLS |
+| 6.6 | ~~Paper replication dashboard~~ ✅ | Registry framework established |
+
+---
+
+## Phase 7 — Accumulative Poisoning (Pang et al. 2021) ✅
+
+> **Goal**: Implement "Accumulative Poisoning Attacks on Real-time Data" (online learning setting).
+
+| # | Task | Deliverable |
+|---|---|---|
+| 7.1 | ~~Logistic Regression model~~ ✅ | `pang2021/model.ts` — SGD-based training |
+| 7.2 | ~~PGD gradient computation~~ ✅ | `pang2021/gradient.ts` — L∞ perturbation craft |
+| 7.3 | ~~Two-phase attack loop~~ ✅ | `pang2021/attack.ts` — accumulate + trigger |
+| 7.4 | ~~Explainer steps~~ ✅ | `pang2021/explainer.ts` — 8 step-by-step cards |
+| 7.5 | ~~Algorithm registration~~ ✅ | `pang2021/index.ts` — configSchema + registry |
+| 7.6 | ~~Extend TraceFrame~~ ✅ | Phase, batchIndex, perturbationNorm, secrecy, drift |
+
+---
+
+## Phase 8 — Transformer Explainer-Style Guided Learning ✅
+
+> **Goal**: Provide interactive step-by-step math explanations inspired by the Transformer Explainer (CHI 2026).
+
+| # | Task | Deliverable |
+|---|---|---|
+| 8.1 | ~~ExplainerOverlay component~~ ✅ | Floating panel with KaTeX equations + navigation |
+| 8.2 | ~~DataFlowDiagram component~~ ✅ | Animated SVG clean vs. poisoned pipeline |
+| 8.3 | ~~Algorithm-specific explainer integration~~ ✅ | `AlgorithmModule.explainerSteps` interface |
+| 8.4 | ~~Phase-aware UI indicators~~ ✅ | Badges showing accumulative/trigger/baseline |
+
+---
+
+## Phase 9 — Future Extensions
+
+> **Goal**: Continue expanding the attack/defense repertoire.
+
+| # | Task | Deliverable |
+|---|---|---|
+| 9.1 | Add explainerSteps to Biggio 2012 | Step-by-step SVM poisoning explanation |
+| 9.2 | Add explainerSteps to Jagielski 2018 | Step-by-step regression poisoning explanation |
+| 9.3 | Label-flip + evasion attacks | Lightweight attack modules |
+| 9.4 | Defense visualizations | TRIM, RONI overlays |
+| 9.5 | Web Worker migration for Pang 2021 | Move computation off main thread |
+

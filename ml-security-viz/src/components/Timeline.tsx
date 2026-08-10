@@ -1,6 +1,7 @@
 'use client';
 import { useMemo } from 'react';
 import useStore from '@/store/useStore';
+import useThemeTokens from '@/hooks/useThemeTokens';
 import { getAlgorithm } from '@/engine/architectures';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -14,6 +15,8 @@ export default function Timeline() {
   const { attackTrace, currentIteration, activeAlgorithm } = useStore();
   const alg = getAlgorithm(activeAlgorithm);
   const isRegression = alg.modelType === 'regression';
+  const t = useThemeTokens();
+  const axisTick = { fill: t.mutedForeground, fontSize: 10 };
 
   const chartData = useMemo(() => {
     if (!attackTrace || attackTrace.length === 0) return [];
@@ -81,49 +84,50 @@ export default function Timeline() {
           <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(148, 163, 184, 0.06)"
+              stroke={t.grid}
               vertical={false}
             />
             <XAxis
               dataKey="iteration"
-              tick={{ fill: '#64748b', fontSize: 10 }}
-              axisLine={{ stroke: 'rgba(148, 163, 184, 0.1)' }}
+              tick={axisTick}
+              axisLine={{ stroke: t.borderSubtle }}
               tickLine={false}
             />
             <YAxis
               yAxisId="primary"
               orientation="left"
-              tick={{ fill: '#64748b', fontSize: 10 }}
+              tick={axisTick}
               axisLine={false}
               tickLine={false}
               domain={isRegression ? ['auto', 'auto'] : [0, 100]}
-              label={{ value: isRegression ? 'Test MSE' : 'Accuracy %', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 10 }}
+              label={{ value: isRegression ? 'Test MSE' : 'Accuracy %', angle: -90, position: 'insideLeft', fill: t.mutedForeground, fontSize: 10 }}
             />
             <YAxis
               yAxisId="loss"
               orientation="right"
-              tick={{ fill: '#64748b', fontSize: 10 }}
+              tick={axisTick}
               axisLine={false}
               tickLine={false}
-              label={{ value: 'Objective', angle: 90, position: 'insideRight', fill: '#64748b', fontSize: 10 }}
+              label={{ value: 'Objective', angle: 90, position: 'insideRight', fill: t.mutedForeground, fontSize: 10 }}
             />
             <YAxis
               yAxisId="deltaW"
               orientation="right"
-              tick={{ fill: '#64748b', fontSize: 10 }}
+              tick={axisTick}
               axisLine={false}
               tickLine={false}
               hide
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: '#1a2332',
-                border: '1px solid rgba(148,163,184,0.15)',
-                borderRadius: '8px',
+                backgroundColor: t.popover,
+                border: `1px solid ${t.border}`,
+                borderRadius: '10px',
                 fontSize: '12px',
-                color: '#f1f5f9',
+                color: t.foreground,
+                boxShadow: 'var(--elevation-2)',
               }}
-              labelStyle={{ color: '#94a3b8' }}
+              labelStyle={{ color: t.mutedForeground }}
               formatter={(value, name) => {
                 const labels: any = {
                   accuracy: ['Poisoned Acc', '%'],
@@ -138,7 +142,7 @@ export default function Timeline() {
               }}
             />
             <Legend
-              wrapperStyle={{ fontSize: '11px', color: '#94a3b8' }}
+              wrapperStyle={{ fontSize: '11px', color: t.mutedForeground }}
               formatter={(value) => {
                 const names: any = { 
                   accuracy: 'Poisoned Accuracy', 
@@ -157,7 +161,7 @@ export default function Timeline() {
               yAxisId="primary"
               type="monotone"
               dataKey={isRegression ? "cleanMSE" : "cleanAcc"}
-              stroke="#10b981"
+              stroke={t.clean}
               strokeWidth={1.5}
               strokeDasharray="5 5"
               dot={false}
@@ -169,7 +173,7 @@ export default function Timeline() {
               yAxisId="primary"
               type="monotone"
               dataKey={isRegression ? "mse" : "accuracy"}
-              stroke="#ef4444"
+              stroke={t.attack}
               strokeWidth={2}
               dot={(props: any) => {
                 const { cx, cy, index } = props;
@@ -178,13 +182,13 @@ export default function Timeline() {
                     <circle
                       key={index}
                       cx={cx} cy={cy} r={5}
-                      fill="#ef4444" stroke="#fff" strokeWidth={2}
+                      fill={t.attack} stroke={t.background} strokeWidth={2}
                     />
                   );
                 }
-                return <circle key={index} cx={cx} cy={cy} r={2} fill="#ef4444" />;
+                return <circle key={index} cx={cx} cy={cy} r={2} fill={t.attack} />;
               }}
-              activeDot={{ r: 6, fill: '#ef4444', stroke: '#fff', strokeWidth: 2 }}
+              activeDot={{ r: 6, fill: t.attack, stroke: t.background, strokeWidth: 2 }}
             />
 
             {/* Objective value */}
@@ -192,10 +196,10 @@ export default function Timeline() {
               yAxisId="loss"
               type="monotone"
               dataKey="objective"
-              stroke="#8b5cf6"
+              stroke={t.gradient}
               strokeWidth={1.5}
               dot={false}
-              activeDot={{ r: 4, fill: '#8b5cf6' }}
+              activeDot={{ r: 4, fill: t.gradient }}
             />
 
             {/* Delta W */}
@@ -203,18 +207,19 @@ export default function Timeline() {
               yAxisId="deltaW"
               type="monotone"
               dataKey="deltaW"
-              stroke="#f59e0b"
+              stroke={t.warning}
               strokeWidth={1.5}
               strokeDasharray="3 3"
               dot={false}
-              activeDot={{ r: 4, fill: '#f59e0b' }}
+              activeDot={{ r: 4, fill: t.warning }}
             />
 
             {/* Current iteration marker */}
             <ReferenceLine
               x={currentIteration}
               yAxisId="primary"
-              stroke="rgba(255,255,255,0.2)"
+              stroke={t.mutedForeground}
+              strokeOpacity={0.5}
               strokeDasharray="3 3"
             />
           </LineChart>

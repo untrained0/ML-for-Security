@@ -4,6 +4,17 @@
 
 import { create } from 'zustand';
 
+/** Where ThemeToggle persists an explicit light/dark choice. Must match the
+ *  pre-paint script in app/layout.tsx. */
+export const THEME_STORAGE_KEY = 'ml-sec-theme';
+
+/** Reads the theme the pre-paint script already applied to <html>. On the
+ *  server there is no document, so this falls back to the same default. */
+function resolveInitialTheme(): 'light' | 'dark' {
+  if (typeof document === 'undefined') return 'dark';
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+}
+
 export interface StoreState {
   // ── Algorithm selection ──
   activeAlgorithm: string;
@@ -37,6 +48,7 @@ export interface StoreState {
   selectedPoint: { type: 'clean' | 'poison', index: number } | null;
 
   // ── UI state ──
+  theme: 'light' | 'dark';
   showLeftPanel: boolean;
   showRightPanel: boolean;
   isPlaying: boolean;
@@ -52,6 +64,8 @@ export interface StoreState {
   
   // ── Actions ──
   setConfig: (updates: Partial<StoreState>) => void;
+  setTheme: (theme: 'light' | 'dark') => void;
+  toggleTheme: () => void;
   setShowTutorial: (show: boolean) => void;
   toggleLeftPanel: () => void;
   toggleRightPanel: () => void;
@@ -108,6 +122,7 @@ const useStore = create<StoreState>((set, get) => ({
   selectedPoint: null,
 
   // ── UI state ──
+  theme: resolveInitialTheme(),
   showLeftPanel: true,
   showRightPanel: true,
   isPlaying: false,
@@ -123,6 +138,8 @@ const useStore = create<StoreState>((set, get) => ({
 
   // ── Actions ──
   setConfig: (updates) => set(updates),
+  setTheme: (theme) => set({ theme }),
+  toggleTheme: () => set(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
   setShowTutorial: (show) => set({ showTutorial: show }),
   toggleLeftPanel: () => set(s => ({ showLeftPanel: !s.showLeftPanel })),
   toggleRightPanel: () => set(s => ({ showRightPanel: !s.showRightPanel })),

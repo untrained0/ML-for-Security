@@ -26,7 +26,7 @@ export default function MathEq({ math, inline = true, tooltip }: MathEqProps) {
   const wrapper = (
     <span
       dangerouslySetInnerHTML={{ __html: html }}
-      className={`inline-block ${tooltip ? 'cursor-help border-b border-dashed border-[var(--text-tertiary)]' : ''}`}
+      className={`inline-block ${tooltip ? 'cursor-help border-b border-dashed border-muted-foreground' : ''}`}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
     />
@@ -38,7 +38,7 @@ export default function MathEq({ math, inline = true, tooltip }: MathEqProps) {
     <div className="relative inline-block">
       {wrapper}
       {showTooltip && (
-        <div className="absolute z-50 w-48 p-2 mt-1 text-xs text-foreground bg-background border border-border rounded shadow-lg left-1/2 -translate-x-1/2 before:content-[''] before:absolute before:-top-1 before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-b-[var(--border-default)]">
+        <div className="absolute z-50 w-48 p-2 mt-1 text-xs text-foreground bg-background border border-border rounded shadow-lg left-1/2 -translate-x-1/2 before:content-[''] before:absolute before:-top-1 before:left-1/2 before:-translate-x-1/2 before:border-4 before:border-transparent before:border-b-[var(--border-strong)]">
           {tooltip}
         </div>
       )}

@@ -1,10 +1,20 @@
-import { predictClass } from './architectures/biggio2012/model';
+/**
+ * Generic classification metrics — algorithm-agnostic.
+ * Accepts a predict function so any model type can be evaluated.
+ */
 
-export function computeMetrics(model: any, X: number[][], y: number[]) {
+export function computeMetrics(
+  model: any,
+  X: number[][],
+  y: number[],
+  predictFn: (model: any, x: number[]) => number
+) {
   let tp = 0, tn = 0, fp = 0, fn = 0;
   for (let i = 0; i < X.length; i++) {
-    const pred = predictClass(model, X[i]);
-    const actual = y[i];
+    const rawPred = predictFn(model, X[i]);
+    // Normalize prediction to +1 / -1
+    const pred = rawPred >= 0 ? 1 : -1;
+    const actual = y[i] >= 0 ? 1 : -1;
     if (pred === 1 && actual === 1) tp++;
     else if (pred === -1 && actual === -1) tn++;
     else if (pred === 1 && actual === -1) fp++;

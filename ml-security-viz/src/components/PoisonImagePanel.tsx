@@ -52,7 +52,7 @@ export default function PoisonImagePanel({ currentState }: { currentState: any }
             ref={canvasRef}
             width={84}
             height={84}
-            className="bg-black rounded-sm shadow-sm [image-rendering:pixelated]"
+            className="bg-[var(--data-image-bg)] rounded-sm shadow-sm [image-rendering:pixelated]"
           />
           <div className="flex flex-col items-center gap-1 w-full text-center">
             <span className="text-[10px] text-muted-foreground/70 uppercase tracking-[0.05em]">

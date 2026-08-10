@@ -14,6 +14,8 @@ import PlaybackBar from '@/components/PlaybackBar';
 import Timeline from '@/components/Timeline';
 import TutorialModal from '@/components/TutorialModal';
 import GuidedTour from '@/components/GuidedTour';
+import ExplainerOverlay from '@/components/ExplainerOverlay';
+import DataFlowDiagram from '@/components/DataFlowDiagram';
 
 export default function Home() {
   const {
@@ -50,6 +52,14 @@ export default function Home() {
       import('@/engine/data/loaders/mnist').then(({ createMNISTDataset }) => {
         import('@/engine/data/datasets').then(({ splitDatasetWithImages }) => {
           const raw = createMNISTDataset(numPoints, 2); 
+          const split = splitDatasetWithImages(raw);
+          setDataset(split, raw);
+        });
+      });
+    } else if (gen.isCIFAR) {
+      import('@/engine/data/loaders/cifar').then(({ createCIFARDataset }) => {
+        import('@/engine/data/datasets').then(({ splitDatasetWithImages }) => {
+          const raw = createCIFARDataset(numPoints, 2); 
           const split = splitDatasetWithImages(raw);
           setDataset(split, raw);
         });
@@ -248,6 +258,11 @@ export default function Home() {
           <div className="h-[180px] min-h-[140px] bg-secondary border-t border-border-subtle p-4">
             <Timeline />
           </div>
+          {attackTrace.length > 0 && (
+            <div className="h-[140px] min-h-[100px] bg-secondary border-t border-border-subtle px-4 py-2">
+              <DataFlowDiagram currentState={currentState} />
+            </div>
+          )}
         </div>
         <div className="flex flex-col h-full overflow-hidden">
           <InverseImagePanel />
@@ -256,6 +271,7 @@ export default function Home() {
       </main>
       <TutorialModal />
       <GuidedTour />
+      <ExplainerOverlay />
     </div>
   );
 }

@@ -16,7 +16,7 @@ export default function Canvas({ currentState }: { currentState?: any }) {
   const { 
     dataset, cleanModel, kernelType, kernelGamma, svmC, 
     showGradients, showHeatmap, heatmapData, attackTrace, currentIteration,
-    setHoveredCanvasPoint, selectedPoint, setConfig, activeAlgorithm
+    setHoveredCanvasPoint, selectedPoint, setConfig, activeAlgorithm, theme
   } = useStore();
   const alg = getAlgorithm(activeAlgorithm);
   const isRegression = alg.modelType === 'regression';
@@ -211,16 +211,18 @@ export default function Canvas({ currentState }: { currentState?: any }) {
       const width = Math.abs(nx - cx);
       const height = Math.abs(ny - cy);
       
-      return { 
-        ...d, 
-        svgX: cx - width/2, 
-        svgY: cy - height/2, 
-        width, 
-        height, 
-        color: `hsl(${hue}, 80%, 30%)` // dark colors to stay in background
+      return {
+        ...d,
+        svgX: cx - width/2,
+        svgY: cy - height/2,
+        width,
+        height,
+        // Deep on dark, pastel on light — either way the field stays behind
+        // the marks instead of competing with them.
+        color: `hsl(${hue}, ${theme === 'dark' ? '80%, 30%' : '70%, 62%'})`
       };
     });
-  }, [heatmapData]);
+  }, [heatmapData, theme]);
 
   const train = dataset?.train;
   const invK = 1 / transform.k;
@@ -228,8 +230,8 @@ export default function Canvas({ currentState }: { currentState?: any }) {
   return (
     <div className="relative w-full h-full overflow-hidden" ref={containerRef}>
       {!dataset && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground/70 text-sm pointer-events-none z-20 bg-[var(--bg-canvas)]">
-          <div className="w-7 h-7 border-[3px] border-border border-t-[var(--accent-primary)] rounded-full animate-spin" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground/70 text-sm pointer-events-none z-20 bg-background">
+          <div className="w-7 h-7 border-[3px] border-border border-t-primary rounded-full animate-spin" />
           <p>Generating dataset...</p>
         </div>
       )}
@@ -241,10 +243,10 @@ export default function Canvas({ currentState }: { currentState?: any }) {
             {gridLines.map((line) => {
               if (line.type === 'v') {
                 const [sx] = toSVG(line.val, 0);
-                return <line key={`v-${line.val}`} x1={sx} y1={-100000} x2={sx} y2={100000} className="stroke-[var(--border-subtle)]" strokeWidth={0.5 * invK} />;
+                return <line key={`v-${line.val}`} x1={sx} y1={-100000} x2={sx} y2={100000} className="stroke-[var(--data-grid)]" strokeWidth={0.5 * invK} />;
               } else {
                 const [, sy] = toSVG(0, line.val);
-                return <line key={`h-${line.val}`} x1={-100000} y1={sy} x2={100000} y2={sy} className="stroke-[var(--border-subtle)]" strokeWidth={0.5 * invK} />;
+                return <line key={`h-${line.val}`} x1={-100000} y1={sy} x2={100000} y2={sy} className="stroke-[var(--data-grid)]" strokeWidth={0.5 * invK} />;
               }
             })}
           </g>
@@ -275,10 +277,10 @@ export default function Canvas({ currentState }: { currentState?: any }) {
                 const dy = -(cell.gradY / gNorm) * arrowLen;
                 return (
                   <g key={`quiver-${i}`}>
-                    <line x1={cx} y1={cy} x2={cx + dx} y2={cy + dy} className="stroke-[var(--text-secondary)]" strokeWidth={1 * invK} />
-                    <polygon 
-                      points={`0,0 ${4 * invK},${1.5 * invK} 0,${3 * invK}`} 
-                      fill="var(--text-secondary)" 
+                    <line x1={cx} y1={cy} x2={cx + dx} y2={cy + dy} className="stroke-[var(--muted-foreground)]" strokeWidth={1 * invK} />
+                    <polygon
+                      points={`0,0 ${4 * invK},${1.5 * invK} 0,${3 * invK}`}
+                      className="fill-[var(--muted-foreground)]"
                       transform={`translate(${cx + dx}, ${cy + dy}) rotate(${Math.atan2(dy, dx) * 180 / Math.PI}) translate(${-4 * invK}, ${-1.5 * invK})`} 
                     />
                   </g>
@@ -289,22 +291,22 @@ export default function Canvas({ currentState }: { currentState?: any }) {
 
           {/* Clean decision boundary (classification) */}
           {!isRegression && boundaryPaths.clean && (
-            <path d={boundaryPaths.clean} className="fill-none stroke-[var(--color-clean)] opacity-70 [filter:drop-shadow(0_0_4px_var(--color-clean-dim))]" strokeWidth={2.5 * invK} strokeDasharray={`${6 * invK},${4 * invK}`} />
+            <path d={boundaryPaths.clean} className="fill-none stroke-[var(--color-clean)] opacity-70 [filter:drop-shadow(0_0_4px_var(--glow-clean))]" strokeWidth={2.5 * invK} strokeDasharray={`${6 * invK},${4 * invK}`} />
           )}
 
           {/* Poisoned decision boundary (classification) */}
           {!isRegression && boundaryPaths.poisoned && (
-            <path d={boundaryPaths.poisoned} className="fill-none stroke-[var(--color-attack)] opacity-90 [filter:drop-shadow(0_0_6px_var(--color-attack-dim))] transition-[d] duration-400 ease-in-out" strokeWidth={2.5 * invK} />
+            <path d={boundaryPaths.poisoned} className="fill-none stroke-[var(--color-attack)] opacity-90 [filter:drop-shadow(0_0_6px_var(--glow-attack))] transition-[d] duration-400 ease-in-out" strokeWidth={2.5 * invK} />
           )}
 
           {/* Clean regression line */}
           {isRegression && regressionLines.clean && (
-            <path d={regressionLines.clean} className="fill-none stroke-[var(--color-clean)] opacity-80 [filter:drop-shadow(0_0_4px_var(--color-clean-dim))]" strokeWidth={2.5 * invK} strokeDasharray={`${6 * invK},${4 * invK}`} />
+            <path d={regressionLines.clean} className="fill-none stroke-[var(--color-clean)] opacity-80 [filter:drop-shadow(0_0_4px_var(--glow-clean))]" strokeWidth={2.5 * invK} strokeDasharray={`${6 * invK},${4 * invK}`} />
           )}
 
           {/* Poisoned regression line */}
           {isRegression && regressionLines.poisoned && (
-            <path d={regressionLines.poisoned} className="fill-none stroke-[var(--color-attack)] opacity-90 [filter:drop-shadow(0_0_6px_var(--color-attack-dim))] transition-[d] duration-400 ease-in-out" strokeWidth={2.5 * invK} />
+            <path d={regressionLines.poisoned} className="fill-none stroke-[var(--color-attack)] opacity-90 [filter:drop-shadow(0_0_6px_var(--glow-attack))] transition-[d] duration-400 ease-in-out" strokeWidth={2.5 * invK} />
           )}
 
           {/* Residual whiskers (regression) */}
@@ -315,7 +317,7 @@ export default function Canvas({ currentState }: { currentState?: any }) {
             const [cx, cy] = toSVG(x, yActual);
             const [, predY] = toSVG(x, yPred);
             return (
-              <line key={`resid-${i}`} x1={cx} y1={cy} x2={cx} y2={predY} className="stroke-[var(--text-tertiary)] opacity-30 pointer-events-none" strokeWidth={1 * invK} strokeDasharray={`${2 * invK},${2 * invK}`} />
+              <line key={`resid-${i}`} x1={cx} y1={cy} x2={cx} y2={predY} className="stroke-[var(--muted-foreground)] opacity-40 pointer-events-none" strokeWidth={1 * invK} strokeDasharray={`${2 * invK},${2 * invK}`} />
             );
           })}
 
@@ -332,12 +334,12 @@ export default function Canvas({ currentState }: { currentState?: any }) {
               return (
                 <g key={`train-${i}`}>
                   {isSelected && (
-                    <circle cx={cx} cy={cy} r={8 * invK} className="fill-none stroke-yellow-400 animate-pulse pointer-events-none" strokeWidth={2 * invK} />
+                    <circle cx={cx} cy={cy} r={8 * invK} className="fill-none stroke-[var(--data-support)] animate-pulse pointer-events-none" strokeWidth={2 * invK} />
                   )}
                   <circle
                     cx={cx} cy={cy} r={4 * invK}
                     fill={`hsl(${hue}, 75%, 55%)`}
-                    className={`stroke-[rgba(255,255,255,0.2)] transition-all duration-200 hover:brightness-125 hover:cursor-pointer ${isSelected ? '!stroke-yellow-400' : ''}`}
+                    className={`transition-all duration-200 hover:brightness-125 hover:cursor-pointer ${isSelected ? 'stroke-[var(--data-support)]' : 'stroke-[var(--background)]'}`}
                     strokeWidth={(isSelected ? 2 : 1) * invK}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -353,11 +355,11 @@ export default function Canvas({ currentState }: { currentState?: any }) {
               return (
                 <g key={`train-${i}`}>
                   {isSelected && (
-                    <circle cx={cx} cy={cy} r={8 * invK} className="fill-none stroke-yellow-400 animate-pulse pointer-events-none" strokeWidth={2 * invK} />
+                    <circle cx={cx} cy={cy} r={8 * invK} className="fill-none stroke-[var(--data-support)] animate-pulse pointer-events-none" strokeWidth={2 * invK} />
                   )}
                   <circle
                     cx={cx} cy={cy} r={4 * invK}
-                    className={`stroke-[rgba(255,255,255,0.15)] transition-all duration-200 hover:brightness-125 hover:cursor-pointer ${isClassA ? 'fill-[var(--data-class-a)]' : 'fill-[var(--data-class-b)]'} ${isSelected ? 'stroke-yellow-400 stroke-[2px]' : ''}`}
+                    className={`transition-all duration-200 hover:brightness-125 hover:cursor-pointer ${isClassA ? 'fill-[var(--data-class-a)]' : 'fill-[var(--data-class-b)]'} ${isSelected ? 'stroke-[var(--data-support)]' : 'stroke-[var(--background)]'}`}
                     strokeWidth={(isSelected ? 2 : 1) * invK}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -389,7 +391,7 @@ export default function Canvas({ currentState }: { currentState?: any }) {
               <circle
                 key={`gained-sv-${currentState.iteration}-${i}`}
                 cx={cx} cy={cy} r={12 * invK}
-                className="fill-none stroke-yellow-400 pointer-events-none animate-[ping_1s_ease-out_1]"
+                className="fill-none stroke-[var(--data-support)] pointer-events-none animate-[ping_1s_ease-out_1]"
                 strokeWidth={3 * invK}
               />
             );
@@ -439,11 +441,11 @@ export default function Canvas({ currentState }: { currentState?: any }) {
             return (
               <g key={`poison-${i}`}>
                 {isSelected && (
-                  <circle cx={cx} cy={cy} r={12 * invK} className="fill-none stroke-yellow-400 animate-pulse pointer-events-none" strokeWidth={2 * invK} />
+                  <circle cx={cx} cy={cy} r={12 * invK} className="fill-none stroke-[var(--data-support)] animate-pulse pointer-events-none" strokeWidth={2 * invK} />
                 )}
                 <circle
                   cx={cx} cy={cy} r={6 * invK}
-                  className={`fill-[var(--data-poison)] stroke-white hover:cursor-pointer hover:brightness-125 transition-all duration-200 ${isSelected ? '!stroke-yellow-400' : ''}`}
+                  className={`fill-[var(--data-poison)] hover:cursor-pointer hover:brightness-125 transition-all duration-200 ${isSelected ? 'stroke-[var(--data-support)]' : 'stroke-[var(--background)]'}`}
                   strokeWidth={2 * invK}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -493,7 +495,7 @@ export default function Canvas({ currentState }: { currentState?: any }) {
       </svg>
 
       {/* Legend */}
-      <div className="absolute bottom-4 right-4 bg-[rgba(10,14,23,0.85)] backdrop-blur-md border border-border p-3 rounded-lg flex flex-col gap-2 shadow-lg z-10 pointer-events-none">
+      <div className="absolute bottom-4 right-4 glass-panel border border-border p-3 rounded-lg flex flex-col gap-2 shadow-lg z-10 pointer-events-none">
         {isRegression ? (
           <>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">

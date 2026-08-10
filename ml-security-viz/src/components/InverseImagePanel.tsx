@@ -40,8 +40,8 @@ export default function InverseImagePanel() {
       </h3>
       
       <div className="flex p-3 gap-3 items-start">
-        <div className="p-3 flex justify-center bg-[var(--bg-canvas)] border-r border-border-subtle" style={{ borderRight: 'none', paddingRight: 0 }}>
-          <canvas ref={canvasRef} width={84} height={84} className="bg-black rounded-sm shadow-[0_4px_12px_rgba(0,0,0,0.5)] [image-rendering:pixelated]" />
+        <div className="p-3 flex justify-center bg-background border-r border-border-subtle" style={{ borderRight: 'none', paddingRight: 0 }}>
+          <canvas ref={canvasRef} width={84} height={84} className="bg-[var(--data-image-bg)] rounded-sm shadow-md [image-rendering:pixelated]" />
         </div>
         <div className="flex flex-col gap-4 flex-1">
           <div className="flex flex-col gap-[2px]">

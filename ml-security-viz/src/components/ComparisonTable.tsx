@@ -2,25 +2,35 @@
 import { useMemo } from 'react';
 import useStore from '@/store/useStore';
 import { computeMetrics } from '@/engine/metrics';
+import { getAlgorithm } from '@/engine/architectures';
 
 export default function ComparisonTable() {
-  const { dataset, cleanRawModel, poisonedRawModel } = useStore();
+  const { dataset, cleanRawModel, poisonedRawModel, activeAlgorithm } = useStore();
+  const alg = getAlgorithm(activeAlgorithm);
 
   const metrics = useMemo(() => {
     if (!dataset || !dataset.test) return null;
+    // Skip for regression algorithms — metrics are classification-only
+    if (alg.modelType === 'regression') return null;
+    
+    const predictFn = alg.predict;
     
     let clean = null;
     if (cleanRawModel) {
-      clean = computeMetrics(cleanRawModel, dataset.test.X, dataset.test.y);
+      try {
+        clean = computeMetrics(cleanRawModel, dataset.test.X, dataset.test.y, predictFn);
+      } catch { /* model incompatible */ }
     }
     
     let poisoned = null;
     if (poisonedRawModel) {
-      poisoned = computeMetrics(poisonedRawModel, dataset.test.X, dataset.test.y);
+      try {
+        poisoned = computeMetrics(poisonedRawModel, dataset.test.X, dataset.test.y, predictFn);
+      } catch { /* model incompatible */ }
     }
     
     return { clean, poisoned };
-  }, [dataset, cleanRawModel, poisonedRawModel]);
+  }, [dataset, cleanRawModel, poisonedRawModel, alg]);
 
   if (!metrics || (!metrics.clean && !metrics.poisoned)) return null;
 

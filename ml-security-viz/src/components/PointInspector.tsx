@@ -36,17 +36,15 @@ export default function PointInspector() {
     }
   }
 
-  // Check if model is compatible with current algorithm
-  const isModelCompatible = (model: any) => {
-    if (!model) return false;
-    if (isRegression && !model.theta) return false;
-    if (!isRegression && !model.supportIndices) return false;
-    return true;
-  };
-
   // Calculate predictions using the algorithm module
-  const cleanPred = isModelCompatible(cleanRawModel) ? alg.predict(cleanRawModel, x) : 0;
-  const poisonedPred = isModelCompatible(poisonedRawModel) ? alg.predict(poisonedRawModel, x) : cleanPred;
+  let cleanPred = 0;
+  if (cleanRawModel) {
+    try { cleanPred = alg.predict(cleanRawModel, x); } catch {}
+  }
+  let poisonedPred = cleanPred;
+  if (poisonedRawModel) {
+    try { poisonedPred = alg.predict(poisonedRawModel, x); } catch {}
+  }
 
   return (
     <div className="glass-panel absolute bottom-6 left-6 z-30 w-[320px] overflow-hidden animate-[fade-in_0.2s_ease-out]">
@@ -145,12 +143,12 @@ export default function PointInspector() {
                 <tr>
                   <td className="px-2 py-1.5 text-muted-foreground" title="Support Vector Weight α">Weight <span className="font-mono">α</span></td>
                   {isClean && (
-                    <td className={`px-2 py-1.5 font-mono ${(cleanRawModel?.alpha[index] || 0) > 1e-3 ? 'text-data-support font-bold' : 'text-muted-foreground/70'}`}>
-                      {(cleanRawModel?.alpha[index] || 0).toFixed(3)}
+                    <td className={`px-2 py-1.5 font-mono ${(cleanRawModel?.alpha?.[index] || 0) > 1e-3 ? 'text-data-support font-bold' : 'text-muted-foreground/70'}`}>
+                      {(cleanRawModel?.alpha?.[index] || 0).toFixed(3)}
                     </td>
                   )}
-                  <td className={`px-2 py-1.5 font-mono ${(poisonedRawModel?.alpha[isClean ? index : dataset.train.X.length + index] || 0) > 1e-3 ? 'text-data-support font-bold' : 'text-muted-foreground/70'}`}>
-                    {(poisonedRawModel?.alpha[isClean ? index : dataset.train.X.length + index] || 0).toFixed(3)}
+                  <td className={`px-2 py-1.5 font-mono ${(poisonedRawModel?.alpha?.[isClean ? index : dataset.train.X.length + index] || 0) > 1e-3 ? 'text-data-support font-bold' : 'text-muted-foreground/70'}`}>
+                    {(poisonedRawModel?.alpha?.[isClean ? index : dataset.train.X.length + index] || 0).toFixed(3)}
                   </td>
                 </tr>
               </tbody>

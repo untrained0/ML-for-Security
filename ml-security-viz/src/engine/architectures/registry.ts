@@ -33,6 +33,14 @@ export interface TraceFrame {
   deltaW: number;
   gainedSVs?: number[][];
   lostSVs?: number[][];
+
+  // Online / accumulative attack fields (Pang et al. 2021)
+  phase?: 'accumulative' | 'trigger' | 'baseline';
+  batchIndex?: number;
+  perturbationNorm?: number;
+  secretAccuracy?: number;     // accuracy during accumulative phase (must stay above threshold)
+  triggerLoss?: number;
+  accumulatedDrift?: number;   // how far θ has drifted from clean θ
 }
 
 /** The core interface every algorithm module must implement */
@@ -65,6 +73,16 @@ export interface AlgorithmModule {
 
   /** Predict for a single point using a raw model */
   predict: (rawModel: any, x: number[]) => number;
+
+  /** Optional: step-by-step explanation cards for guided learning (Transformer Explainer-style) */
+  explainerSteps?: {
+    id: string;
+    title: string;
+    equation?: string;        // KaTeX string
+    description: string;
+    highlightElement?: string; // component ID to highlight on canvas
+    phase?: string;            // maps to TraceFrame.phase
+  }[];
 }
 
 /** Global registry */

@@ -1,30 +1,37 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import useStore from '@/store/useStore';
-import { predict } from '@/engine/architectures/biggio2012/model';
+import { getAlgorithm } from '@/engine/architectures';
 import { drawMNISTImage } from '@/engine/data/loaders/mnist';
+import { drawCIFARImage } from '@/engine/data/loaders/cifar';
 
 export default function TestImagePanel() {
   const {
-    datasetKey, mnistData, dataset,
-    cleanRawModel, poisonedRawModel,
+    datasetKey, dataset,
+    cleanRawModel, poisonedRawModel, activeAlgorithm,
     selectedTestIndex, setSelectedTestIndex,
   } = useStore();
+  const alg = getAlgorithm(activeAlgorithm);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Re-draw the canvas when index changes
   useEffect(() => {
-    if (!mnistData || !dataset || datasetKey !== 'mnist' || !canvasRef.current) return;
+    if (!dataset || !dataset.test || !dataset.test.images || !canvasRef.current) return;
+    if (datasetKey !== 'mnist' && datasetKey !== 'cifar') return;
     
     const ctx = canvasRef.current.getContext('2d');
     const imagePixels = dataset.test.images[selectedTestIndex];
     if (imagePixels && ctx) {
-      drawMNISTImage(ctx, imagePixels, 0, 0, 3); // 28x28 * 3 = 84x84
+      if (datasetKey === 'mnist') {
+        drawMNISTImage(ctx, imagePixels, 0, 0, 3); // 28x28 * 3 = 84x84
+      } else if (datasetKey === 'cifar') {
+        drawCIFARImage(ctx, imagePixels, 0, 0, 3); // 32x32 * 3 (scale is passed as 3 but we'll adapt in cifar.ts)
+      }
     }
-  }, [selectedTestIndex, mnistData, dataset, datasetKey]);
+  }, [selectedTestIndex, dataset, datasetKey]);
 
-  if (datasetKey !== 'mnist' || !mnistData || !dataset || !dataset.test) return null;
+  if ((datasetKey !== 'mnist' && datasetKey !== 'cifar') || !dataset || !dataset.test || !dataset.test.images) return null;
 
   const maxIndex = dataset.test.images.length - 1;
   const trueLabel = dataset.test.labels[selectedTestIndex];
@@ -32,14 +39,20 @@ export default function TestImagePanel() {
 
   const features = dataset.test.X[selectedTestIndex];
 
+  const predictFn = alg.predict;
+
   let cleanPred: any = null;
   let poisonedPred: any = null;
 
   if (cleanRawModel) {
-    cleanPred = predict(cleanRawModel, features);
+    try {
+      cleanPred = predictFn(cleanRawModel, features);
+    } catch {}
   }
   if (poisonedRawModel) {
-    poisonedPred = predict(poisonedRawModel, features);
+    try {
+      poisonedPred = predictFn(poisonedRawModel, features);
+    } catch {}
   }
 
   const handlePrev = () => {
@@ -50,8 +63,14 @@ export default function TestImagePanel() {
     setSelectedTestIndex(Math.min(maxIndex, selectedTestIndex + 1));
   };
 
-  const formatClass = (pred: number) => pred > 0 ? '7 (+1)' : '1 (−1)';
+  const formatClass = (pred: number) => {
+    if (datasetKey === 'mnist') return pred > 0 ? '7 (+1)' : '1 (−1)';
+    if (datasetKey === 'cifar') return pred > 0 ? 'Ship (+1)' : 'Frog (−1)';
+    return pred > 0 ? '+1' : '-1';
+  };
   const isCorrect = (pred: number) => (pred > 0 && trueY > 0) || (pred < 0 && trueY < 0);
+
+  const canvasSize = datasetKey === 'cifar' ? 96 : 84; // 32x3 vs 28x3
 
   return (
     <section className="bg-secondary rounded-md border border-border-subtle overflow-hidden flex flex-col shrink-0">
@@ -61,7 +80,7 @@ export default function TestImagePanel() {
       
       <div className="flex p-3 gap-3 items-start">
         <div className="flex flex-col items-center gap-3 p-3 border-r border-border-subtle">
-          <canvas ref={canvasRef} width={84} height={84} className="bg-black rounded-sm shadow-[0_4px_12px_rgba(0,0,0,0.5)] [image-rendering:pixelated]" />
+          <canvas ref={canvasRef} width={canvasSize} height={canvasSize} className="bg-[var(--data-image-bg)] rounded-sm shadow-md [image-rendering:pixelated]" />
           <div className="flex items-center gap-3">
             <button className="bg-background border border-border text-muted-foreground rounded-md w-7 h-7 flex items-center justify-center cursor-pointer transition-all duration-200 hover:not(:disabled):bg-secondary/50 hover:not(:disabled):text-foreground hover:not(:disabled):border-primary disabled:opacity-30 disabled:cursor-not-allowed" onClick={handlePrev} disabled={selectedTestIndex === 0}>◀</button>
             <span className="font-mono text-xs text-muted-foreground/70 min-w-[40px] text-center">{selectedTestIndex + 1} / {maxIndex + 1}</span>

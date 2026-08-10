@@ -1,6 +1,7 @@
 'use client';
 import useStore from '@/store/useStore';
 import { getAllAlgorithms } from '@/engine/architectures';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function AppHeader() {
   const { setShowTutorial, activeAlgorithm, setActiveAlgorithm } = useStore();
@@ -42,9 +43,10 @@ export default function AppHeader() {
       </div>
 
       <div className="flex gap-2 items-center">
-        <button 
+        <ThemeToggle />
+        <button
           onClick={() => setShowTutorial(true)}
-          className="text-sm font-medium text-secondary-foreground transition-colors duration-150 hover:text-foreground flex items-center justify-center w-8 h-8 rounded-full hover:bg-secondary/80 border border-border bg-secondary cursor-pointer"
+          className="text-sm font-medium text-secondary-foreground transition-colors duration-150 hover:text-foreground flex items-center justify-center w-8 h-8 rounded-md hover:bg-secondary/80 border border-border bg-secondary cursor-pointer"
           title="Tutorial"
         >
           ?

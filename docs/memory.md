@@ -1,10 +1,10 @@
 # Memory — ML Security Attack Visualizer
 
-> **Last Updated**: 2025-07-30 14:35 IST
+> **Last Updated**: 2026-08-08
 
 ---
 
-## Current Status: 🟢 Phase 1 — Foundation Complete, Running
+## Current Status: 🟢 Active Development — 3 Attack Algorithms Implemented
 
 ### ✅ Completed
 
@@ -13,128 +13,98 @@
 | Research references & Biggio 2012 paper | — | 2025-07-30 |
 | Analyzed PoisonRegression codebase | `poisoning/poison.py`, `gd_poisoners.py` | 2025-07-30 |
 | Created all 6 docs (PRD, Architecture, Rules, Phases, Design, Memory) | `docs/*.md` | 2025-07-30 |
-| Updated Architecture & Rules for Next.js | `docs/architecture.md`, `docs/rules.md` | 2025-07-30 |
-| Initialized Next.js 16 project | `ml-security-viz/` | 2025-07-30 |
+| Initialized Next.js project + Tailwind CSS v4 | `ml-security-viz/` | 2025-07-30 |
 | Installed deps: zustand, d3, recharts, katex | `package.json` | 2025-07-30 |
-| Created engine: linalg.js | `src/engine/linalg.js` | 2025-07-30 |
-| Created engine: kernels.js (+ fixed symmetric matrix bug) | `src/engine/kernels.js` | 2025-07-30 |
-| Created engine: svm.js (SMO solver) | `src/engine/svm.js` | 2025-07-30 |
-| Created engine: datasets.js | `src/engine/datasets.js` | 2025-07-30 |
-| Created engine: poisoning.js | `src/engine/poisoning.js` | 2025-07-30 |
-| Created Zustand store | `src/store/useStore.js` | 2025-07-30 |
-| Created root layout + globals.css | `src/app/layout.js`, `src/app/globals.css` | 2025-07-30 |
-| Created main page (orchestrator) | `src/app/page.js`, `src/app/page.module.css` | 2025-07-30 |
-| Created AppHeader component | `src/components/AppHeader.js` | 2025-07-30 |
-| Created ControlPanel component | `src/components/ControlPanel.js` | 2025-07-30 |
-| Created Canvas component (SVG scatter + marching squares) | `src/components/Canvas.js` | 2025-07-30 |
-| Created PlaybackBar component | `src/components/PlaybackBar.js` | 2025-07-30 |
-| Created MathPanel component | `src/components/MathPanel.js` | 2025-07-30 |
-| Created Timeline component (Recharts) | `src/components/Timeline.js` | 2025-07-30 |
-| Dev server running, compiling clean | `npm run dev` → localhost:3000 | 2025-07-30 |
-| Added PCA and MNIST generator (Digits 1 v 7) | `src/engine/pca.js`, `src/engine/mnist.js` | 2025-07-30 |
-| Built TestImagePanel for clean vs poisoned diffs | `src/components/TestImagePanel.tsx` | 2025-07-30 |
-| Added sidebar toggle controls for full-screen canvas | `src/components/PlaybackBar.tsx`, `page.tsx` | 2025-07-30 |
-| Converted UI to Tailwind CSS v4 | All `.tsx` components, `globals.css` | 2025-07-30 |
-| Offloaded Poisoning Engine to Web Worker (Phase 2.1) | `src/engine/worker.ts`, `page.tsx`, `useStore.ts` | 2025-07-30 |
-| Integrated KaTeX rendering for math equations | `MathPanel.tsx`, `MathEq.tsx` | 2025-07-30 |
-| Built Δw convergence tracker | `worker.ts`, `Timeline.tsx` | 2025-07-30 |
-| Tracked SV changes and added SV flashing animation | `worker.ts`, `Canvas.tsx` | 2025-07-30 |
-| Built Comparison Metrics Table (Precision/Recall/F1) | `ComparisonTable.tsx`, `metrics.ts` | 2025-07-30 |
-| Rendered objective function heatmap and gradient vector field | `worker.ts`, `Canvas.tsx`, `ControlPanel.tsx` | 2025-07-30 |
-| Rendered poison point descent trajectories | `Canvas.tsx` | 2025-07-30 |
-| Added JSON and SVG Export buttons | `PlaybackBar.tsx` | 2025-07-30 |
-| Implemented CSV Dataset Upload parser | `ControlPanel.tsx` | 2025-07-30 |
-| Created Onboarding Tutorial overlay | `TutorialModal.tsx`, `AppHeader.tsx`, `useStore.ts` | 2025-07-30 |
-| Updated comprehensive documentation | `README.md` | 2025-07-30 |
-| Fixed infinite pan/zoom bug and canvas rendering | `Canvas.tsx` | 2026-07-30 |
-| Built scalable multi-algorithm registry framework | `src/engine/algorithms/registry.ts`, `index.ts` | 2026-07-30 |
-| Wrapped existing Biggio 2012 SVM logic in new framework | `src/engine/algorithms/biggio2012.ts` | 2026-07-30 |
-| Implemented Jagielski 2018 Regression Poisoning (KKT) | `src/engine/algorithms/jagielski2018.ts` | 2026-07-30 |
-| Added regression datasets (Linear, Quadratic, Sine) | `datasets.ts` | 2026-07-30 |
-| Added 1D approximations of 3 real-world datasets (Warfarin, Lending Club, House Pricing) | `datasets.ts` | 2026-07-30 |
-| Implemented LASSO (Coordinate Descent) and OLS | `jagielski2018.ts` | 2026-07-30 |
-| Implemented Active-Set KKT gradients for LASSO | `jagielski2018.ts` | 2026-07-30 |
-| Fixed regression Timeline / PlaybackBar undefined crashes | `Timeline.tsx`, `PlaybackBar.tsx` | 2026-07-30 |
-| UI adaptive rendering for Regression (lines, residuals) vs Classification (contours) | `Canvas.tsx`, `MathPanel.tsx`, `ControlPanel.tsx`, `PointInspector.tsx` | 2026-07-30 |
-| PointInspector math metrics for individual points | `PointInspector.tsx` | 2026-07-30 |
-| GuidedTour Helper Box for algorithmic walk-through | `GuidedTour.tsx` | 2026-07-30 |
-| Concept Explainer System (clickable math popovers) | `ExplainerCard.tsx`, `explainers.tsx`, `ExplainerIcon.tsx` | 2026-07-30 |
-
-### 🐛 Bugs Fixed
-
-| Bug | Root Cause | Fix |
-|---|---|---|
-| `TypeError: Cannot set properties of undefined` in `computeKernelMatrix` | Symmetric fill `K[j][i]=val` accessed uninitialized row | Initialize ALL rows in a first pass |
-| `TypeError: Cannot destructure property 'mean'` | `mnistData` raw data wasn't saved in `setDataset` | Pass `raw` MNIST data into `setDataset` in `page.tsx` |
-| Test Image Predictor showing "Not attacked" | `poisonedRawModel` was not pushed to trace history | Return `rawModel` from `poisonIteration`, push to trace, and strip `kernelFn` during worker IPC |
-| Worker failing to build `computeGradient` | Missing import | Add `computeGradient` import in `worker.ts` |
-| `TypeError: model.supportIndices is not iterable` in PointInspector | Used display model instead of raw model | PointInspector uses `cleanRawModel` and `poisonedRawModel` which retain functional math fields |
-| `The final argument passed to useEffect changed size between renders` | React dependency array mutability on zoom | Extracted variables or stabilized array references in dependencies |
-
-### 📋 Up Next (Phase 6: Multi-Attack Framework - Future)
-
-- Label-flip attack (6.1)
-- Evasion attack (FGSM-style) (6.2)
-- Backdoor attack (6.3)
-- Defense visualizations (TRIM, RONI) (6.4)
-- ~~Regression poisoning (6.5)~~ (Done: Jagielski 2018)
-- Paper replication dashboard (6.6) (Done: registry framework established)
+| Created engine: linalg.ts, kernels.ts | `src/engine/` | 2025-07-30 |
+| Created SVM solver (SMO) | `src/engine/architectures/biggio2012/model.ts` | 2025-07-30 |
+| Created dataset generators + real-world datasets | `src/engine/data/datasets.ts` | 2025-07-30 |
+| Created Zustand store | `src/store/useStore.ts` | 2025-07-30 |
+| Created all UI components (Canvas, MathPanel, Timeline, etc.) | `src/components/` | 2025-07-30 |
+| Built scalable multi-algorithm registry framework | `src/engine/architectures/registry.ts` | 2026-07-30 |
+| Implemented Biggio 2012 SVM Poisoning | `src/engine/architectures/biggio2012/` | 2026-07-30 |
+| Implemented Jagielski 2018 Regression Poisoning (KKT) | `src/engine/architectures/jagielski2018/` | 2026-07-30 |
+| Added regression datasets (Linear, Quad, Sine, Warfarin, Lending, House) | `datasets.ts` | 2026-07-30 |
+| LASSO (Coordinate Descent) and OLS regression | `jagielski2018/model.ts` | 2026-07-30 |
+| GuidedTour + TutorialModal + Concept Explainer | `GuidedTour.tsx`, `TutorialModal.tsx`, `ExplainerCard.tsx` | 2026-07-30 |
+| Full design system alignment with `design.md` | All components | 2026-08-07 |
+| **Refactored jagielski2018 into model.ts + attack.ts + index.ts** | `jagielski2018/` | 2026-08-08 |
+| **Extended TraceFrame with online learning fields** | `registry.ts` | 2026-08-08 |
+| **Added explainerSteps to AlgorithmModule interface** | `registry.ts` | 2026-08-08 |
+| **Implemented Pang 2021 Accumulative Poisoning (online learning)** | `pang2021/` | 2026-08-08 |
+| **Created ExplainerOverlay (Transformer Explainer-style)** | `ExplainerOverlay.tsx` | 2026-08-08 |
+| **Created DataFlowDiagram (animated SVG pipeline)** | `DataFlowDiagram.tsx` | 2026-08-08 |
+| **Created CONTRIBUTING.md for collaborators** | `CONTRIBUTING.md` | 2026-08-08 |
+| **Dual light/dark theme + typography overhaul** | `globals.css`, `layout.tsx`, `ThemeToggle.tsx`, `useThemeTokens.ts`, `docs/design.md` | 2026-08-11 |
 
 ---
 
-## Key Decisions
+## Theme System (added 2026-08-11)
+
+The design system was dark-only; it now ships **light and dark**, both tuned rather than one being a tint of the other. Raw tokens are declared twice (`:root` = light, `.dark` = dark) and `@theme inline` maps them to utilities that re-resolve at runtime, so a class on `<html>` switches everything. Every token pair was measured — all clear WCAG AA 4.5:1 in both themes.
+
+Four latent bugs surfaced and were fixed along the way:
+
+1. **The reset block was unlayered.** Unlayered CSS beats every layered rule, so `button { background: none }` was overriding `bg-primary` (the play button had *no* fill), `h1 { font-size: 2xl }` was overriding `text-base`, and `a { color: accent }` was overriding link color utilities. Wrapping the reset in `@layer base` fixed all three.
+2. **Web fonts were never actually applied.** `@theme` named the literal families (`"Inter"`), but `next/font` registers hashed family names exposed as CSS variables — so the whole UI silently fell back to system fonts. Font tokens now point at `var(--font-inter)` etc.
+3. **Dead tokens.** `--bg-canvas`, `--accent-primary`, `--text-secondary`, `--text-tertiary`, `--color-clean-dim`, `--color-attack-dim`, `--border-default` survived the Tailwind migration in `Canvas.tsx`, `MathEq.tsx`, and `InverseImagePanel.tsx`, resolving to nothing (quiver arrows and residual lines were rendering as invalid fills).
+4. **The concept-explainer UI was hardcoded light** (`bg-white`, `bg-gray-50`, `text-gray-500`) inside a dark app — unreadable before this change, correct in both themes now.
+
+Also new: `useThemeTokens()` for Recharts/JS-computed SVG color (the only place CSS can't reach), and tabular/slashed-zero figures on `.data-value`/`.metric-value` so metrics stop jittering as they update.
+
+---
+
+## Architecture
+
+### Algorithm Registry Pattern
+
+Every attack paper is encapsulated as an `AlgorithmModule` registered in `src/engine/architectures/registry.ts`:
+
+```
+src/engine/architectures/
+├── registry.ts          # AlgorithmModule interface + global registry
+├── index.ts             # Barrel file — imports all algorithm modules
+├── biggio2012/          # SVM Poisoning (Classification)
+│   ├── index.ts         # Registration + configSchema
+│   ├── model.ts         # SVM (SMO solver)
+│   ├── attack.ts        # Gradient ascent poisoning loop
+│   └── kernels.ts       # Kernel functions (linear, RBF, poly)
+├── jagielski2018/       # Regression Poisoning (Ridge/LASSO/OLS)
+│   ├── index.ts         # Registration + configSchema
+│   ├── model.ts         # Ridge, LASSO, OLS training
+│   └── attack.ts        # Bilevel optimization via KKT
+└── pang2021/            # Accumulative Poisoning (Online Learning)
+    ├── index.ts          # Registration + configSchema
+    ├── model.ts          # Logistic regression + SGD
+    ├── attack.ts         # Two-phase: accumulate + trigger
+    ├── gradient.ts       # PGD perturbation computation
+    └── explainer.ts      # Transformer Explainer-style step cards
+```
+
+### Key Decisions
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Framework | Next.js 16 (App Router) | User requested modern framework |
-| State | Zustand | Lightweight, no boilerplate |
+| Framework | Next.js 16 (App Router) | Modern React, optimized builds |
+| State | Zustand | Lightweight, hook-based |
 | Charts | Recharts | Native React, built on D3 |
-| Canvas rendering | Raw SVG + marching squares | No D3 imperative DOM needed; React-friendly |
-| Compute offload | setTimeout (Phase 1) → Web Worker (Phase 2) | Quick to ship; Web Worker comes next |
+| Canvas | Raw SVG + marching squares | React-friendly, no D3 DOM |
+| Compute | setTimeout loops | Quick iteration; Web Worker ready |
+| Styling | Tailwind CSS v4 | CSS-based configuration |
+| Registry pattern | AlgorithmModule interface | Enables plug-and-play attack modules |
 
----
-
-## File Manifest
+### Component Hierarchy
 
 ```
-docs/
-├── prd.md           ✅ 
-├── architecture.md  ✅ (updated for Next.js)
-├── rules.md         ✅ (updated for Next.js)
-├── phases.md        ✅
-├── design.md        ✅
-└── memory.md        ✅ (this file)
-
-ml-security-viz/src/
-├── app/
-│   ├── globals.css      ✅
-│   ├── layout.tsx       ✅
-│   └── page.tsx         ✅
-├── components/
-│   ├── AppHeader.tsx     ✅
-│   ├── Canvas.tsx        ✅
-│   ├── ControlPanel.tsx  ✅
-│   ├── MathPanel.tsx     ✅
-│   ├── PlaybackBar.tsx   ✅
-│   ├── Timeline.tsx      ✅
-│   ├── PointInspector.tsx✅
-│   ├── GuidedTour.tsx    ✅
-│   ├── ExplainerCard.tsx ✅
-│   └── ExplainerIcon.tsx ✅
-├── engine/
-│   ├── architectures/    ✅ (Decoupled plugin framework)
-│   │   ├── registry.ts   ✅
-│   │   ├── index.ts      ✅
-│   │   ├── biggio2012/   ✅ (SVM classification)
-│   │   └── jagielski2018/✅ (Ridge/LASSO regression)
-│   ├── data/
-│   │   ├── datasets.ts   ✅
-│   │   ├── raw/          ✅ (JSON datasets)
-│   │   └── loaders/      ✅
-│   ├── ui/
-│   │   └── explainers.tsx✅
-│   ├── linalg.ts         ✅
-│   └── worker.ts         ✅
-└── store/
-    └── useStore.ts       ✅
+page.tsx
+├── AppHeader
+├── ControlPanel          # Left sidebar — dynamic config from AlgorithmModule
+├── Canvas               # Center — 2D scatter + decision boundary/regression line
+├── Timeline             # Bottom — loss/metric charts over iterations
+├── DataFlowDiagram      # Bottom — animated clean vs poisoned pipeline
+├── MathPanel            # Right sidebar — model state inspector
+├── PlaybackBar          # Bottom bar — play/pause/step controls
+├── PointInspector       # Floating — per-point math details
+├── ExplainerOverlay     # Floating — step-by-step guided learning
+├── GuidedTour           # Floating — algorithm walk-through
+└── TutorialModal        # Modal — first-time onboarding
 ```

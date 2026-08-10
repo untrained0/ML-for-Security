@@ -44,7 +44,7 @@ export default function TutorialModal() {
   if (!showTutorial) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-foreground/25 backdrop-blur-sm">
       <div className="bg-card border border-border rounded-xl shadow-2xl w-[500px] max-w-[90vw] overflow-hidden flex flex-col animate-[fadeIn_0.3s_ease-out]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border-subtle bg-secondary flex items-center justify-between">
@@ -77,7 +77,7 @@ export default function TutorialModal() {
             {step < steps.length - 1 ? (
               <button 
                 onClick={() => setStep(s => s + 1)}
-                className="px-4 py-1.5 rounded text-sm font-medium border-none text-white bg-primary hover:bg-primary/90 cursor-pointer"
+                className="px-4 py-1.5 rounded text-sm font-medium border-none text-primary-foreground bg-primary hover:bg-primary/90 cursor-pointer"
               >
                 Next
               </button>

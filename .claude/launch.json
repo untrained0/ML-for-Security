@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ml-security-viz",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "ml-security-viz", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

@@ -209,6 +209,7 @@ export const DATASETS: Record<string, any> = {
   gaussian: { name: 'Gaussian', fn: makeGaussian,  icon: '📊', desc: 'Overlapping Gaussians' },
   spiral:   { name: 'Spiral',   fn: makeSpiral,    icon: '🌀', desc: 'Interleaving spirals' },
   mnist:    { name: 'MNIST 1v7', fn: null, icon: '🔢', desc: 'Handwritten digits 1 vs 7 (Biggio 2012)', isMNIST: true },
+  cifar:    { name: 'CIFAR-10 Frog/Ship', fn: null, icon: '🖼️', desc: 'Synthetic Frog vs Ship (Pang 2021)', isCIFAR: true },
   
   // Regression datasets
   linearReg:    { name: 'Linear',    fn: makeLinearRegression,    icon: '📈', desc: 'y = 2x + 1 + ε', isRegression: true },
