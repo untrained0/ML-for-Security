@@ -95,14 +95,29 @@ export function runMyAttack(
   config: Record<string, any>,
   onProgress: (frame: TraceFrame) => void,
   onComplete: () => void,
-  onError: (msg: string) => void
+  onError: (msg: string) => void,
+  signal?: AbortSignal
 ) {
   // Main attack loop
   // Call onProgress(frame) at each iteration
   // Call onComplete() when done
   // Call onError(msg) on failure
+  // Yield between steps with setTimeout(step, 0), and return without calling onComplete once
+  // signal?.aborted is true
 }
 ```
+
+The same `runAttack` runs in the browser **and** on the attack server (`POST /api/attack`, which
+uploads the dataset and clean model and streams frames back as JSON), so:
+
+- Frames must survive `JSON.stringify`: plain arrays and numbers. A function on a frame (like
+  Biggio's `kernelFn`) is dropped and has to be re-attached by `page.tsx`.
+- Anything you need from the clean model must be in `modelState` or its `rawModel`; the upload
+  drops `rawModel.K`, `rawModel.X`, `rawModel.y` and `rawModel.kernelFn`.
+- Dense linear algebra that dominates run time should go through `compute()` from
+  `src/engine/compute` (XᵀX, inverse, rank-one updated inverse, resident matrix-vector products):
+  it is plain TypeScript in the browser and CUDA on a server with a GPU. Release anything it
+  returns with `dispose()` (GPU memory), e.g. in a `finally` around your generator.
 
 ### 4. Create `index.ts` — Register Your Module
 

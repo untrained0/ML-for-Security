@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# original datasets (downloaded by scripts/fetch_datasets.mjs, served by /api/datasets/*)
+/data/
+
+# CUDA addon built by scripts/build_cuda.mjs
+/native/build/
