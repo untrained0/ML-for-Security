@@ -19,7 +19,7 @@
  */
 
 import { dot } from '../../linalg';
-import { compute, type RankOneInverse } from '../../compute';
+import { compute, type DenseMatrix, type RankOneInverse } from '../../compute';
 
 export type RegType = 'ols' | 'ridge' | 'lasso' | 'elasticnet';
 
@@ -27,6 +27,14 @@ const RHO = 0.5;
 /** The authors fit "OLS" as sklearn Ridge(alpha=1e-5) (gd_poisoners.py): one-hot columns are
  *  collinear with the bias, so XᵀX is singular without a tiny ridge. */
 const OLS_RIDGE = 1e-5;
+/** OLS iterative refinement (RegressionFit.refined), in relative energy norm ‖δ‖_A / ‖x‖_A:
+ *  converged below REFINE_TOL; a stall is accepted as the rounding floor below REFINE_FLOOR_THETA
+ *  (θ = A⁻¹Xᵀy) or REFINE_FLOOR_GRAD (H⁻¹∇W, where 1e-6 relative is ample for a search
+ *  direction), else the inverse is refactored. */
+const REFINE_TOL = 1e-12;
+const REFINE_FLOOR_THETA = 2e-9;
+const REFINE_FLOOR_GRAD = 1e-6;
+const REFINE_STEPS = 8;
 
 /** λΩ(w) = l1‖w‖₁ + l2·½‖w‖² */
 export function penalty(type: RegType, lambda: number) {
@@ -61,6 +69,13 @@ const soft = (z: number, t: number) => (z > t ? z - t : z < -t ? z + t : 0);
  *   ℓ1 models     (X_AᵀX_A + l2s·I_w)⁻¹ on the active set A, θ_A from the KKT system when the sign
  *                 pattern holds, warm-started coordinate descent when it does not. The KKT checks
  *                 read XᵀX, so it is updated on every swap (O(d²)).
+ *   OLS           as ridge, but l2s is only OLS_RIDGE and the one-hot columns are collinear with
+ *                 the bias, so cond(XᵀX + l2s·I) ≈ 1e10: an explicitly updated inverse drifted by
+ *                 up to 1e-2 in test predictions between refits (a fresh inverse is only good to
+ *                 ~1e-7). So the inverse is used as a preconditioner only: every solve, θ and
+ *                 H⁻¹g alike, is finished by iterative refinement against the normal-equation
+ *                 residual computed from the rows (`refined`), and the inverse is refactored
+ *                 whenever refinement stops converging.
  * Call `dispose()` when done: a GPU-resident inverse holds device memory.
  */
 export class RegressionFit {
@@ -79,9 +94,13 @@ export class RegressionFit {
   private inv: RankOneInverse | null = null;   // inverse for `act` (all columns when closed-form)
   private act: number[] | null = null;
   private updates = 0;
+  private readonly refine: boolean;           // OLS: polish every solve (see class comment)
+  private Xd: DenseMatrix | null = null;      // OLS: the rows as of the last refit, for residuals
+  private moved = new Map<number, number[]>(); // rows swapped since: index → the row Xd holds
 
   constructor(X: number[][], y: number[], type: RegType, lambda: number) {
     this.type = type;
+    this.refine = type === 'ols';
     this.lambda = type === 'ols' ? 0 : lambda;
     this.N = X.length;
     this.rows = X.map(r => [...r, 1]);
@@ -96,7 +115,7 @@ export class RegressionFit {
 
   private get closedForm() { return this.l1s === 0; }
 
-  /** XᵀX from the stored rows. */
+  /** XᵀX from the stored rows; returns them flattened (row-major N × D). */
   private buildXtX() {
     const D = this.dAug, N = this.N;
     const flat = new Float64Array(N * D);
@@ -104,6 +123,7 @@ export class RegressionFit {
     const XtX = compute().gram(flat, N, D);
     this.XtX = Array.from({ length: D }, (_, j) => XtX.subarray(j * D, (j + 1) * D));
     this.xtxStale = false;
+    return flat;
   }
 
   private ensureXtX() {
@@ -118,7 +138,12 @@ export class RegressionFit {
   /** Rebuild every statistic from the stored rows (also clears Sherman–Morrison drift). */
   refit() {
     const D = this.dAug;
-    this.buildXtX();
+    const flat = this.buildXtX();
+    if (this.refine) {
+      this.Xd?.dispose();
+      this.Xd = compute().denseMatrix(flat, this.N, D);
+      this.moved.clear();
+    }
     this.Xty = new Array(D).fill(0);
     for (let i = 0; i < this.N; i++) {
       const r = this.rows[i], yi = this.y[i];
@@ -139,6 +164,7 @@ export class RegressionFit {
     const D = this.dAug;
     const old = this.rows[i], oldY = this.y[i];
     const neu = [...x, 1];
+    if (this.refine && !this.moved.has(i)) this.moved.set(i, old);
     this.rows[i] = neu;
     this.y[i] = yv;
     for (let j = 0; j < D; j++) this.Xty[j] += neu[j] * yv - old[j] * oldY;
@@ -154,12 +180,21 @@ export class RegressionFit {
     }
     if (this.inv) {
       const sub = (v: number[]) => (this.act ? this.act.map(j => v[j]) : v);
-      this.inv.update(sub(old), -1);
-      this.inv.update(sub(neu), +1);
+      if (this.refine) {
+        // Add before removing: A + nnᵀ is never closer to singular than A, whereas A − ooᵀ nearly
+        // is when `old` is the only row carrying a rare one-hot category, and the tiny
+        // Sherman–Morrison denominator 1 − oᵀA⁻¹o would then amplify rounding into the inverse
+        this.inv.update(sub(neu), +1);
+        this.inv.update(sub(old), -1);
+      } else {
+        this.inv.update(sub(old), -1);
+        this.inv.update(sub(neu), +1);
+      }
     }
-    // Rank-one updates drift on ill-conditioned XᵀX (OLS on one-hot data, ~1e-4 per update pair)
-    // but not measurably under regularisation (~1e-13): refactor accordingly.
-    if (++this.updates % (this.type === 'ols' ? 32 : 1024) === 0) return this.refit();
+    // Rank-one updates do not drift measurably under regularisation (~1e-13). They do on OLS's
+    // ill-conditioned system, but there the inverse is only a preconditioner: `refined` corrects
+    // every solve and refactors the inverse itself once it stops converging.
+    if (++this.updates % 1024 === 0) return this.refit();
     this.solve();
     return this.theta;
   }
@@ -199,7 +234,9 @@ export class RegressionFit {
 
   private solve() {
     this.syncInverse();
-    if (this.closedForm) {
+    if (this.refine) {
+      this.theta = this.refined(this.Xty, REFINE_FLOOR_THETA, this.y);
+    } else if (this.closedForm) {
       this.theta = Array.from(this.inv!.apply(this.Xty));
       if (!this.theta.every(Number.isFinite)) {
         this.replaceInverse(this.freshInverse(null));
@@ -207,6 +244,67 @@ export class RegressionFit {
       }
     } else if (!this.activeSetSolve()) {
       this.coordinateDescent();
+    }
+  }
+
+  /**
+   * A⁻¹b, A = XᵀX + l2s·I_w, for OLS: iterative refinement with the maintained inverse M as the
+   * preconditioner, x ← x + δ, δ = M(b − Ax).
+   *
+   * The residual is taken from the rows themselves, never from running totals: with `y`
+   * (b = Xᵀy) r = Xᵀ(y − Xx) − l2s·x_w, which also avoids the cancellation in Xᵀy − XᵀXx;
+   * otherwise r = b − Xᵀ(Xx) − l2s·x_w. An incrementally updated XᵀX / Xᵀy is off by ~1e-13
+   * after a few hundred swaps, and at this conditioning that alone moved test predictions by
+   * ~1e-6. The two O(N·d) products run on `Xd` (resident on the GPU when there is one), with the
+   * rows swapped since it was built (`moved`; the poisoning points, during an attack) patched in.
+   *
+   * Progress is measured in the energy norm ‖δ‖_A ≈ √(δ·r) relative to ‖x‖_A. It bounds what
+   * matters, ‖Xδ‖ ≤ ‖δ‖_A (the change of every fitted value), and ignores rounding noise along
+   * the near-null direction of the one-hot columns and the bias, which dominates ‖δ‖ itself but
+   * moves no prediction. Corrections are applied while they at least halve; once they stop (the
+   * fp64 floor: ~1e-9 for θ and ~1e-7 for H⁻¹g on Warfarin/House) x is accepted if that is below
+   * `floor`. Otherwise M has drifted too far to precondition (or went non-finite): it is
+   * refactored and the solve restarted, and the result of that second attempt is kept.
+   */
+  private refined(b: ArrayLike<number>, floor: number, y?: number[]): number[] {
+    const D = this.dAug, N = this.N, Xd = this.Xd!;
+    for (let attempt = 0; ; attempt++) {
+      const x = Array.from(this.inv!.apply(b));
+      let prev = Infinity;
+      for (let step = 0; step < REFINE_STEPS; step++) {
+        const e = Xd.mul(x);                                  // Xx, stale rows fixed below
+        for (const i of this.moved.keys()) e[i] = dot(this.rows[i], x);
+        let xAx = 0;
+        for (let i = 0; i < N; i++) {
+          xAx += e[i] * e[i];
+          e[i] = y ? y[i] - e[i] : -e[i];                     // y − Xx, or −Xx
+        }
+        const r = Xd.mulT(e);
+        for (const [i, was] of this.moved) {
+          const now = this.rows[i], ei = e[i];
+          if (ei !== 0) for (let k = 0; k < D; k++) r[k] += (now[k] - was[k]) * ei;
+        }
+        for (let j = 0; j < D; j++) {
+          if (!y) r[j] += b[j];
+          if (j === D - 1) continue;
+          r[j] -= this.l2s * x[j];
+          xAx += this.l2s * x[j] * x[j];
+        }
+        const dx = this.inv!.apply(r);
+        let dr = 0;
+        for (let j = 0; j < D; j++) dr += dx[j] * r[j];
+        if (xAx === 0 && dr === 0) return x;                  // b = 0
+        const rel = Math.sqrt(Math.abs(dr) / xAx);            // NaN/∞ when M or x is not finite
+        if (rel <= REFINE_TOL) return x;
+        if (!(rel <= prev / 2)) {
+          if (rel <= floor || attempt > 0) return x;
+          break;                                              // refactor M and start over
+        }
+        for (let j = 0; j < D; j++) x[j] += dx[j];
+        prev = rel;
+      }
+      if (attempt > 0) return x;
+      this.replaceInverse(this.freshInverse(null));
     }
   }
 
@@ -295,6 +393,7 @@ export class RegressionFit {
    */
   applyHessianInverse(g: number[]): number[] {
     this.syncInverse();
+    if (this.refine) return this.refined(g, REFINE_FLOOR_GRAD);
     if (this.closedForm) return Array.from(this.inv!.apply(g));
     const act = this.act!;
     const vA = this.inv!.apply(act.map(j => g[j]));
@@ -307,6 +406,8 @@ export class RegressionFit {
   dispose() {
     this.replaceInverse(null);
     this.act = null;
+    this.Xd?.dispose();
+    this.Xd = null;
   }
 }
 
