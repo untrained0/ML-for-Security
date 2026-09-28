@@ -53,6 +53,72 @@ Also new: `useThemeTokens()` for Recharts/JS-computed SVG color (the only place 
 
 ---
 
+## Pang 2021 correctness pass (2026-08-11)
+
+Checked `pang2021/` against the paper (arXiv:2106.09993, Algorithm 1). The attack was optimising the wrong objective and has been rewritten.
+
+**Eq. 7** is a joint minimisation over the poisoning operator 𝒫 and the accumulative operator 𝒜:
+
+```
+min_{P,A}  ∇L(S_val; A(θ_T))ᵀ ∇L(P(S_T); A(θ_T))
+s.t.       L(S_val; A(θ_T)) ≤ L(S_val; θ_T) + γ
+```
+
+The inner product is the whole mechanism: to first order `L(S_val; θ_{T+1}) ≈ L(S_val; θ_T) − β⟨∇L(S_val), ∇L(P(S_T))⟩`, so driving the alignment negative is what makes one trigger step raise validation loss.
+
+What was wrong, and what it is now:
+
+| # | Was | Now |
+|---|---|---|
+| 1 | Accumulative phase maximised the **loss of the clean trigger batch** after the step — a proxy for gradient *magnitude* that ignores direction, which is the entire point | Follows Algorithm 1: `G_t = ∇_θ⟨∇L(S_val), ∇L(P(S_T))⟩`, `d_t = ∇L(S_t) + λG_t`, PGD maximises `H_t = ⟨∇L(A_t(S_t)), d_t⟩` |
+| 2 | Trigger crafted **once at the end**, so accumulation steered θ against a batch that was then discarded — breaks the joint min | `P(S_T)` refined every round alongside `A_t` |
+| 3 | No "keep learning" term, so perturbed updates had no pressure to look normal | The `∇L(S_t)` term in `d_t`; λ sets the mix |
+| 4 | Stealth = absolute accuracy floor on the **test** set. If clean accuracy sat below τ, *every* batch was rejected and the phase silently no-opped | γ budget against a **counterfactual clean trajectory** θ̃ on the validation split, plus the paper's early stop |
+| 5 | `runAttack` ignored the `cleanModelState` handed to it and retrained with a fresh random init — the attack started from different weights than the "clean" boundary drawn on the canvas | Starts from the handed-in model |
+| 6 | Numerical gradient took a full SGD step + trigger-loss evaluation per coordinate | Analytic `lossGradient`; central differences only where genuinely needed. Faster *and* correct |
+
+**Verified numerically** (headless harness, 5 seeds): the first-order forecast tracks reality (predicted Δloss 0.0279 vs actual 0.0314), and at the tuned defaults accumulation drops accuracy **22.7 pts vs 3.3 pts for the λ=0 control** — i.e. the accumulative phase, not the trigger, is what does the damage. That is the paper's central claim and it now reproduces.
+
+**Honest caveat, surfaced in the UI**: the old defaults (ε=0.3, λ=1, β=0.5) produced *zero* measurable effect. Three-parameter logistic regression gives the attacker far less room than the paper's deep nets, so defaults are now ε=0.8, λ=25, β=1.5, γ=0.6 — larger than anything one would call imperceptible. The mechanism is faithful; the magnitudes are exaggerated so the effect is visible. The last explainer card says so explicitly.
+
+## Pang 2021, second pass — why the attack still did nothing (2026-08-11)
+
+Reported symptom: accuracy pinned at 100% across the whole run, trigger included. Checked against the
+reference implementation ([ShawnXYang/AccumulativeAttack](https://github.com/ShawnXYang/AccumulativeAttack)).
+
+Three causes, two of them ours:
+
+1. **Gradients were combined un-normalised.** The reference builds its objective from L2-normalised
+   gradients — `F.normalize(grad_tri) @ F.normalize(grad_val)` and
+   `F.normalize(grad_train_adv) @ (gamma * F.normalize(grad_train))`. Ours mixed raw gradients, whose
+   magnitudes differ by orders of magnitude, so whichever term happened to be larger won outright and λ
+   barely registered. `d_t` is now built from unit vectors, making λ a genuine mixing weight
+   ("λ≈1 = half honest learning, half accumulation"). Its range dropped from 0–50 to 0–5 accordingly.
+2. **The victim was fully converged.** `trainClean` ran 100 epochs. The reference has a dedicated
+   *burn-in* phase (`train_cifar.py`) and then keeps training online — the victim is mid-training when
+   the attacker arrives. A converged 3-parameter model has ∇L → 0 and nothing to hijack. Added a
+   **Burn-in Epochs** control (default 20).
+3. **A separable dataset makes the attack impossible, and that is not a bug.** At ~100% accuracy with a
+   wide margin there is no point close enough to the boundary for one bounded step to flip. The reported
+   run used exactly that regime. The explainer now *diagnoses* this instead of leaving a flat line
+   unexplained ("data too separable" / "raise λ / lower burn-in").
+
+Also: batch sizing no longer silently truncates (asking for 40 accumulative rounds on 90 points used to
+give 22), and `cleanAccuracy` is now re-measured each round from the counterfactual clean trajectory
+rather than frozen at iteration 0 — the victim is still learning while the attacker accumulates.
+
+Verified in-app on overlapping Gaussians: mid-accumulation the poisoned model reads **86.7% vs 83.3%
+clean** — indistinguishable, which is the whole point — then collapses to **56.7% vs 80%** on the trigger.
+Effect size is seed-dependent in 2-D; burn-in and dataset separability dominate everything else.
+
+## Layout + explainer rework (2026-08-11)
+
+- **`ControlPanel` could not scroll**: it carried both `overflow-y-auto` and `overflow-hidden`, and the later one won. ~250px of controls were unreachable. Fixed, plus `min-h-0` on the flex columns and a `min-h-[220px]` floor on the plot so the bottom strips can't squeeze it away. Strip padding unified to `p-4`.
+- **Switching algorithms bricked the app**: `setActiveAlgorithm` nulls the dataset, but the regeneration effect was keyed only on `datasetKey`/`numPoints`, so it never re-fired — the app sat on "Generating dataset…" and every downstream action silently no-opped. `generateDataset` now depends on the active algorithm and falls back to a supported dataset key when the current one doesn't apply (e.g. `moons` → a regression set for jagielski2018).
+- **Explainer rebuilt in the Transformer-Explainer mould**: `ExplainerStep` gained `liveEquation`, `readouts`, and `visual`, all evaluated against the frame the user is scrubbed to, so the maths shows the model's real numbers. New `ExplainerVisual.tsx` animates the geometry — the gradient-alignment wedge (turns red past 90°), the `d_t = ∇L(S_t) + λG_t` parallelogram, and predicted-vs-actual loss bars. The panel follows the attack's phase automatically and can be pinned to manual.
+
+---
+
 ## Architecture
 
 ### Algorithm Registry Pattern

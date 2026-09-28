@@ -41,6 +41,10 @@ Current modules: `biggio2012` (SVM poisoning, SMO solver + kernels), `jagielski2
 
 Both paths funnel frames into `useStore.getState().appendAttackTraceFrame(frame)`.
 
+### Guided explainer
+
+`AlgorithmModule.explainerSteps` drives the walkthrough panel. A step carries the symbolic `equation` plus optional `liveEquation(frame, config)`, `readouts(frame, config)`, and `visual` — all evaluated against the frame the user is scrubbed to, so the maths is bound to the running model rather than illustrating it. `visual` names a diagram in [ExplainerVisual.tsx](ml-security-viz/src/components/ExplainerVisual.tsx), which draws real vectors out of the trace. Anything a step needs to draw must therefore be emitted on the `TraceFrame` (see `gradVal`, `gradTrigger`, `gradAccum`).
+
 ### TraceFrame contract
 
 `TraceFrame` is the single wire format between engine and UI. Required on every frame: `iteration`, `poisonX`, `poisonY`, `poisonedModel` (display-friendly), `poisonedRawModel` (feeds `predict`), `objectiveValue`, `gradients`, `gradientNorms`, `deltaW`. Everything else — classification accuracy, regression MSE, SV churn, the Pang online-learning fields (`phase`, `batchIndex`, `secretAccuracy`, …) — is optional. **New fields must be optional (`?`)** so other algorithms keep compiling.
