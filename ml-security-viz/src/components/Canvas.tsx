@@ -6,6 +6,8 @@ import { getAlgorithm } from '@/engine/architectures';
 import { project, projectDirection, lift } from '@/engine/data/view';
 import PointInspector from './PointInspector';
 import PoisonImagePanel from './PoisonImagePanel';
+import Canvas3D from './Canvas3D';
+import { useThrottled } from '@/hooks/useThrottled';
 
 /**
  * Canvas component — D3 SVG scatter plot with decision boundary / regression line
@@ -15,7 +17,7 @@ export default function Canvas({ currentState }: { currentState?: any }) {
   const {
     dataset, cleanModel, datasetError, isExporting,
     showGradients, showHeatmap, heatmapData, attackTrace, currentIteration,
-    setHoveredCanvasPoint, selectedPoint, setConfig, activeAlgorithm, theme
+    setHoveredCanvasPoint, selectedPoint, setConfig, activeAlgorithm, theme, canvasView,
   } = useStore();
   const alg = getAlgorithm(activeAlgorithm);
   const isRegression = alg.modelType === 'regression';
@@ -41,6 +43,10 @@ export default function Canvas({ currentState }: { currentState?: any }) {
   }, []);
 
   const [transform, setTransform] = useState<d3.ZoomTransform>(d3.zoomIdentity);
+
+  // 3-D needs a second floor axis: every dataset but the 1-D regression toys has one
+  const can3D = (dataset?.train?.X?.[0]?.length ?? 0) >= 2;
+  const is3D = !!dataset && canvasView === '3d' && can3D;
 
   // Data range for mapping: datasets may declare their own extent (paper data is not in ±2.5)
   const range = useMemo(
@@ -123,19 +129,19 @@ export default function Canvas({ currentState }: { currentState?: any }) {
   // on high-dimensional data it is throttled: frames stream in faster than it can be drawn.
   const poisonedRawModel = useThrottled(currentState?.poisonedRawModel ?? null, view && !isExporting ? 300 : 0);
   const cleanBoundary = useMemo(
-    () => (dataset && !isRegression ? boundaryAt(cleanModel?.rawModel) : null),
-    [dataset, cleanModel, alg, range, width, height, isRegression],
+    () => (dataset && !isRegression && !is3D ? boundaryAt(cleanModel?.rawModel) : null),
+    [dataset, cleanModel, alg, range, width, height, isRegression, is3D],
   );
   const hasFrame = !!currentState;
   const poisonedBoundary = useMemo(
-    () => (dataset && !isRegression && hasFrame ? boundaryAt(poisonedRawModel) : null),
-    [dataset, poisonedRawModel, hasFrame, alg, range, width, height, isRegression],
+    () => (dataset && !isRegression && hasFrame && !is3D ? boundaryAt(poisonedRawModel) : null),
+    [dataset, poisonedRawModel, hasFrame, alg, range, width, height, isRegression, is3D],
   );
   const boundaryPaths = { clean: cleanBoundary, poisoned: poisonedBoundary };
 
   // Compute regression line paths (only in regression mode)
   const regressionLines = useMemo(() => {
-    if (!dataset || !isRegression) return { clean: null, poisoned: null };
+    if (!dataset || !isRegression || is3D) return { clean: null, poisoned: null };
 
     // For d > 1 this is the model's prediction along the first principal direction
     const computeLinePath = (model: any) => {
@@ -155,7 +161,7 @@ export default function Canvas({ currentState }: { currentState?: any }) {
     const poisonedPath = currentState?.poisonedRawModel ? computeLinePath(currentState.poisonedRawModel) : null;
 
     return { clean: cleanPath, poisoned: poisonedPath };
-  }, [dataset, cleanModel, currentState, alg, isRegression, range, width, height]);
+  }, [dataset, cleanModel, currentState, alg, isRegression, range, width, height, is3D]);
 
   const gridLines = useMemo(() => {
     const [xMinSvg, yMinSvg] = transform.invert([0, 0]);
@@ -252,8 +258,9 @@ export default function Canvas({ currentState }: { currentState?: any }) {
           )}
         </div>
       )}
-      <svg ref={svgRef} data-export="attack-canvas" width={width} height={height} className="w-full h-full block cursor-grab active:cursor-grabbing" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave} onClick={() => { if (selectedPoint) setConfig({ selectedPoint: null }); }}>
-        {dataset && (
+      {/* The 2-D svg stays mounted in 3-D (d3-zoom is bound to it once) but is hidden and empty */}
+      <svg ref={svgRef} data-export={is3D ? undefined : 'attack-canvas'} width={width} height={height} className={`w-full h-full block cursor-grab active:cursor-grabbing ${is3D ? 'hidden' : ''}`} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave} onClick={() => { if (selectedPoint) setConfig({ selectedPoint: null }); }}>
+        {dataset && !is3D && (
           <g transform={`translate(${transform.x},${transform.y}) scale(${transform.k})`}>
             {/* Grid lines */}
           <g>
@@ -521,7 +528,35 @@ export default function Canvas({ currentState }: { currentState?: any }) {
         )}
       </svg>
 
+      {is3D && <Canvas3D currentState={currentState} width={width} height={height} />}
+
+      {/* 2-D / 3-D */}
+      {dataset && (
+        <div className="absolute top-4 right-4 z-20 flex gap-0.5 rounded-md border border-border bg-secondary p-0.5 shadow" role="radiogroup" aria-label="Canvas view">
+          {(['2d', '3d'] as const).map(v => (
+            <button
+              key={v}
+              role="radio"
+              aria-checked={(v === '3d') === is3D}
+              disabled={v === '3d' && !can3D}
+              title={v === '2d'
+                ? 'Flat view'
+                : can3D
+                  ? (isRegression ? 'Response as height over the two main feature directions' : 'Decision value f(x) as height')
+                  : 'Needs at least two features'}
+              onClick={() => setConfig({ canvasView: v })}
+              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed ${
+                (v === '3d') === is3D ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'
+              }`}
+            >
+              {v.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Legend */}
+      {!is3D && (
       <div className="absolute bottom-4 right-4 glass-panel border border-border p-3 rounded-lg flex flex-col gap-2 shadow-lg z-10 pointer-events-none">
         {isRegression ? (
           <>
@@ -567,6 +602,7 @@ export default function Canvas({ currentState }: { currentState?: any }) {
           </div>
         )}
       </div>
+      )}
 
       {/* Iteration badge */}
       {currentState && (
@@ -666,20 +702,4 @@ function marchingSquares(grid: number[][], res: number, gridRange: any, renderRa
   return paths.map(path => {
     return 'M ' + path.map(p => `${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(' L ');
   }).join(' ');
-}
-
-/**
- * `value`, updated at most once per `ms` (always the latest value once the interval allows).
- * ms ≤ 0 passes the value straight through.
- */
-function useThrottled<T>(value: T, ms: number): T {
-  const [throttled, setThrottled] = useState(value);
-  const last = useRef(0);
-  useEffect(() => {
-    if (ms <= 0) return;
-    const wait = Math.max(0, last.current + ms - Date.now());
-    const id = setTimeout(() => { last.current = Date.now(); setThrottled(value); }, wait);
-    return () => clearTimeout(id);
-  }, [value, ms]);
-  return ms <= 0 ? value : throttled;
 }

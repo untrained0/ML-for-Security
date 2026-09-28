@@ -81,6 +81,7 @@ export interface StoreState {
   datasetError: string | null;
   exportDialog: 'svg' | 'data' | null;
   isExporting: boolean;          // snapshotting frames: canvas renders every frame unthrottled
+  canvasView: '2d' | '3d';       // flat scatter, or data + model surface in 3-D (Canvas3D)
   attackMeta: { config: Record<string, any>; datasetKey: string; startedAt: string } | null;
   // ── Compute: run attacks on the server (GPU when available) or in this browser ──
   computeTarget: 'auto' | 'server' | 'browser';
@@ -165,6 +166,7 @@ const useStore = create<StoreState>((set, get) => ({
   datasetError: null,
   exportDialog: null,
   isExporting: false,
+  canvasView: '2d',
   attackMeta: null,
   computeTarget: 'auto',
   serverCompute: null,

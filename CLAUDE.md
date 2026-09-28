@@ -33,7 +33,7 @@ There is **no test suite**. `npm run build` is the verification step; it must pa
 
 ### Algorithm registry — the central pattern
 
-Every attack paper is a self-contained plugin under `src/engine/architectures/<paper_key>/` implementing the `AlgorithmModule` interface in [registry.ts](ml-security-viz/src/engine/architectures/registry.ts). The UI is fully generic: `ControlPanel` renders sliders/selects straight from `configSchema`, `Canvas` branches only on `modelType` (`'classification'` vs `'regression'`), and everything downstream reads `TraceFrame` objects.
+Every attack paper is a self-contained plugin under `src/engine/architectures/<paper_key>/` implementing the `AlgorithmModule` interface in [registry.ts](ml-security-viz/src/engine/architectures/registry.ts). The UI is fully generic: `ControlPanel` renders sliders/selects straight from `configSchema`, `Canvas` (and its 3-D view `Canvas3D`, toggled by `canvasView`) branches only on `modelType` (`'classification'` vs `'regression'`), and everything downstream reads `TraceFrame` objects.
 
 A module supplies `trainClean()`, `runAttack()`, `predict()`, a `datasets: string[]` whitelist, `configSchema` + `defaultConfig`, and optional `explainerSteps`. It calls `registerAlgorithm(mod)` at module scope; registration only happens because [architectures/index.ts](ml-security-viz/src/engine/architectures/index.ts) side-effect-imports every folder. **Adding an algorithm means a new folder plus one import line — never edit another algorithm's folder.**
 
