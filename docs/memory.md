@@ -292,3 +292,38 @@ Rechecked against the paper (§3.2, Eq. 6–9, Algorithm 1, §4) and the authors
 - **At the defaults** (inner product, λ 0.3, T 300, clean trigger, server β 1, w = 0, no clipping), 8 seeds each: MNIST 3v5 accumulated drop 3.0 vs 0.0 without accumulation (+2.9 ± 1.4, 7/8), before-trigger accuracy 95.0 → 84.9; CIFAR ship/frog 0.6 vs −0.2 (+0.8 ± 0.2, 7/8), 89.2 → 85.6. ~0.2 s/round MNIST, ~0.5 s/round CIFAR (server CPU, many runs in parallel).
 - **Clipping (Table 3 analogue, 3 seeds each)**: direct poisoner unclipped s_d = 50: MNIST 25.3, CIFAR 40.4 points; under ℓ2 ≤ 1: 3.8 / 3.7 — clipping neutralises it, as in the paper. Accumulated trigger under clipping: MNIST ℓ2 ≤ 10 5.6 (direct s_d 10: 9.2), ℓ∞ ≤ 1 4.9 (6.3), ℓ∞ ≤ 0.1 2.6 (1.2), ℓ2 ≤ 0.1 0.5 (0.6); CIFAR ℓ∞ ≤ 1 3.4 (7.9), ℓ∞ ≤ 0.1 0.4 (0.5), ℓ2 ≤ 0.1 0.0 (0.4). Accumulation beats the direct poisoner only at MNIST ℓ∞ ≤ 0.1.
 - **Against the paper** (Table 3, 10-class CIFAR-10, ResNet-18 with BN, T = 1000, λ 0.01–0.08): clean trigger after accumulation → 11–34% from ~83%; direct poisoner 65/41/10% at scale 10/20/50. The collapse does **not** reproduce here. Differences: two-class task (chance 50%), a 32-unit MLP without batch norm (the reference also runs BN in train mode through every crafting forward pass), CPU-bounded T, S_val from the training split. The honest statement: the mechanism (alignment driven negative, trigger primed, clipping bypassed by small updates) is implemented exactly and measurable, but the effect on this victim is a few points.
+
+## Pang 2021 — federated ablation: why the collapse does not reproduce (2026-09-29)
+
+- **Question**: the paper's federated Tables 3–6 go from ~83% to 11–34% after one trigger; here the accumulated trigger costs a few points. Hypotheses tested: (H1) no batch norm — the reference crafts through BN in train mode; (H2) 2 classes instead of 10; (H3) CPU-bounded T; (H4) S_val from the training split instead of a test batch.
+- **Engine options added, off by default** (defaults verified byte-identical: frames of the committed federated attack on seeded data, and grad/Hv/pixel gradient/logit/G_t on the no-BN binary net): batch norm after every hidden linear layer (`batchNorm`, train-mode batch statistics for gradients, running statistics — momentum 0.1, unbiased variance — for evaluation; in the federated attack the S_T and S_val crafting passes update the attacked model's running statistics each round, as `craft_federated_NEW` does, and every server step updates them from the batch it forwards); a softmax head for K-class data (`dataset.numClasses`, cross-entropy, R-operator curvature diag(p) − ppᵀ); `federatedValSource` 'test' — a 500-image test batch as S_val like the reference's `teloader` batch, overlapping the evaluation set. The image sampler (`server/datasets.ts`) now accepts ≥ 2 classes (2-class output unchanged). Not exposed in the UI.
+- **Exact gradients through BN**: ∇θL, H·v and the pixel gradient in train and eval mode, K = 1 and 10, ReLU/tanh, 1–2 hidden layers, and the federated update: central differences agree to ≤ 5e-9 (train-mode BN couples the batch, so the checks perturb the whole batch).
+- **Harness**: `npm run ablation:pang -- --all` (scripts/pang_ablation.ts; worker pool, one run per process, CPU only). Base = federated defaults (inner product, λ 0.3, T 300, clean trigger, server β 1, no clipping, no monitor, MLP 32). 5 independent runs per cell. 10-class samples: MNIST 5000/500/5000, CIFAR-10 5000/500/2000 (train/S_val/test). Raw results: docs/data/pang_federated_ablation_2026-09-29.jsonl.
+
+| dataset | cell | acc₀ | pre-trigger | accumulated drop | same trigger, no accumulation | direct poisoner s_d=10 | drop − no-accum (mean ± sd) | wins |
+|---|---|---|---|---|---|---|---|---|
+| MNIST | base | 95.1 | 86.5 | 4.5 | 0.2 | 4.0 | +4.3 ± 5.2 | 4/5 |
+| MNIST | BN (H1) | 95.6 | 93.3 | 0.1 | −0.1 | 1.7 | +0.2 ± 0.3 | 3/5 |
+| MNIST | 10 classes (H2) | 88.8 | 63.8 | 4.8 | 0.4 | 14.4 | +4.4 ± 3.8 | 5/5 |
+| MNIST | BN + 10 classes | 88.9 | 49.8 | 3.1 | 0.4 | 6.1 | +2.7 ± 1.7 | 5/5 |
+| MNIST | S_val = test batch (H4) | 95.4 | 83.8 | 1.7 | 0.0 | 3.4 | +1.7 ± 1.5 | 4/5 |
+| MNIST | T = 1000 (H3) | 95.4 | 50.4 | −0.3 | 0.0 | 2.4 | −0.3 ± 0.5 | 1/5 |
+| MNIST | all four, inner λ 0.3 | 89.4 | 30.9 | 0.1 | 0.0 | 4.0 | +0.1 ± 1.4 | 2/5 |
+| MNIST | all four, cosine λ 0.05 (reference) | 89.1 | 85.3 | 1.6 | −0.3 | 4.7 | +1.8 ± 0.9 | 5/5 |
+| CIFAR-10 | base | 89.2 | 78.2 | 1.2 | −0.3 | 5.7 | +1.5 ± 1.8 | 5/5 |
+| CIFAR-10 | BN (H1) | 88.8 | 86.6 | 0.4 | −0.6 | 4.8 | +0.9 ± 1.2 | 4/5 |
+| CIFAR-10 | 10 classes (H2) | 34.4 | 24.0 | 0.7 | −0.1 | 6.7 | +0.8 ± 1.3 | 3/5 |
+| CIFAR-10 | BN + 10 classes | 30.6 | 20.9 | 1.1 | 0.2 | 7.4 | +0.9 ± 3.0 | 3/5 |
+| CIFAR-10 | S_val = test batch (H4) | 89.5 | 85.8 | 1.2 | −0.5 | 10.1 | +1.7 ± 1.8 | 5/5 |
+| CIFAR-10 | T = 1000 (H3) | 90.7 | 63.0 | 1.8 | −0.1 | 2.2 | +1.9 ± 3.0 | 3/5 |
+| CIFAR-10 | all four, inner λ 0.3 | 32.5 | 11.9 | 0.3 | −0.5 | 8.5 | +0.8 ± 0.9 | 3/5 |
+| CIFAR-10 | all four, cosine λ 0.05 (reference) | 32.4 | 31.1 | 1.6 | 0.1 | 6.1 | +1.5 ± 1.4 | 4/5 |
+
+- **Verdicts** (accuracy points; "collapse" = the paper's 50–70-point single-step drop):
+  - **H1 batch norm — rejected.** BN, with the reference's running-statistics behaviour, *shrinks* the paired gain (MNIST +0.2 vs +4.3, CIFAR +0.9 vs +1.5) and keeps pre-trigger accuracy higher; no collapse alone or combined.
+  - **H2 10 classes — rejected as the cause.** MNIST 10-class gives the same gain as binary (+4.4, now 5/5) but the accumulative phase already costs 25 points before the trigger; the direct poisoner gets much stronger (14.4). A 32-unit MLP reaches only ~33% on 10-class CIFAR-10 (the paper's ResNet-18: 83%), so that cell is a weak victim.
+  - **H3 longer accumulation — rejected.** T = 1000 drags accuracy down *before* the trigger (MNIST 95 → 50, CIFAR 91 → 63) and does not enlarge the single-step drop (−0.3 / +1.9).
+  - **H4 S_val from a test batch — rejected.** +1.7 on both, within the base's spread.
+  - **All four together** with the reference's cosine objective and the paper's λ: the most paper-like behaviour — stealthy (pre-trigger ≈ acc₀) and a consistent gain (+1.8 ± 0.9 MNIST 5/5, +1.5 ± 1.4 CIFAR 4/5) — but still ~2 points, not a collapse. With the inner product the model collapses before the trigger instead (31% / 12%).
+  - The direct poisoner (s_d = 10, unclipped) beats the accumulated trigger in 15 of 16 cells.
+- **What is left, untested**: the architecture itself — a ResNet-18 (convolutions, depth, standard parameterisation at lr 0.1) against a 32-unit MLP whose hidden layers are 1/√fan-in scaled, which damps how far one step moves the logits; and the victim's strength on 10-class CIFAR (83% vs ~33%). The data say the gap is not explained by BN, class count, T or where S_val comes from.
