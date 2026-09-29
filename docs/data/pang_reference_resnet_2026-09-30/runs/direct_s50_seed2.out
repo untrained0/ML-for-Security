@@ -1,0 +1,16 @@
+/home/soham/Soham/pang_reference/AccumulativeAttack/feder_runner.py:93: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  ckpt = torch.load(os.path.join(args.resume, args.model_name))
+Namespace(dataroot='data/CIFAR-10/', shared=None, depth=18, group_norm=32, batch_size=100, test_batch_size=500, workers=0, log_name='log_direct_s50_seed2.txt', attack_method='pgd', print_freq=50, lr=0.1, accu_iter=1, online=False, shuffle=False, epsilon=0.2, dset_size=0, use_bn=True, only_second=False, only_normal=False, only_reg=False, test_tri=False, resume='checkpoints_base_bn', model_name='epoch40.pth', mode='train', onlinemode='train', outf='.', momentum=0.9, weight_decay=0, fe_tri_scale=1.0, fe_train_scale=1.0, feder_lambda=50.0, feder_lambda_clean=1.0, epochs=1, num_steps=2, seed=2, use_initlr=False, threshold=1.202, restore_optimizer=False, clip_gradnorm=False, clipvalue=1, poisoned_trigger_step=1.0, main='direct')
+Resuming from checkpoints_base_bn...
+Epoch: 40 Error: 0.133
+Preparing data...
+Files already downloaded and verified
+Files already downloaded and verified
+ * Acc@1 0.867
+Test loss:  0.4575841724872589
+Initial test error: 0.1330
+val 1.064693808555603
+tensor(-20.8499, device='cuda:0', grad_fn=<MulBackward0>)
+ * Acc@1 0.109
+Test loss:  18.25145149230957
+Test error after poisoned tri: 0.8907
