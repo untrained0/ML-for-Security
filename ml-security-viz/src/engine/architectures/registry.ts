@@ -139,7 +139,16 @@ export interface AlgorithmModule {
    * function of the merged config when it depends on the chosen model.
    */
   mathPanel?: MathPanelLabels | ((config: Record<string, any>) => MathPanelLabels);
+
+  /**
+   * Optional: the guided-tour cards (the 💡 panel). Without it the tour shows Biggio 2012's SVM
+   * walkthrough for `biggio2012` and the regression walkthrough otherwise.
+   */
+  tourSteps?: TourStep[];
 }
+
+/** One card of the guided tour. */
+export interface TourStep { title: string; content: string }
 
 /** A KaTeX symbol with its tooltip; the poisoned-model row may use its own (e.g. w_p). */
 export interface LabelledSymbol { symbol: string; tooltip: string; poisonedSymbol?: string; poisonedTooltip?: string }

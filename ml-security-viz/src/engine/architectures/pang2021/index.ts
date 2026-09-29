@@ -15,6 +15,7 @@ import { runAccumulativeAttack } from './attack';
 import { pang2021ExplainerSteps } from './explainer';
 import { pangPointDetails } from './inspector';
 import { pangMathPanel } from './panel';
+import { pangTourSteps } from './tour';
 
 const pang2021: AlgorithmModule = {
   key: 'pang2021',
@@ -192,6 +193,7 @@ const pang2021: AlgorithmModule = {
   explainerSteps: pang2021ExplainerSteps,
   pointDetails: pangPointDetails,
   mathPanel: pangMathPanel,
+  tourSteps: pangTourSteps,
 };
 
 registerAlgorithm(pang2021);
