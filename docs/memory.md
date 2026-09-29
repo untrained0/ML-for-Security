@@ -266,27 +266,41 @@ page.tsx
 ## Jagielski fixes integrated: OLS refinement + ℓ1 solver + attack loop (2026-09-29)
 
 - **Branch** `jagielski-integrated` = `claude/friendly-gould-0c5641` (38254dc, OLS drift) + cherry-pick of 302cb72 (ℓ1 solver, attack loop). Conflicts only in `RegressionFit` docs/imports and around `solve()`: OLS solves go through `refined` (row-residual refinement, add-before-remove, refit every 1024), LASSO / elastic net through the KKT-checked Newton step + feature-sign search, ridge through the plain closed form.
-- **Verified on CPU only** (`MLSV_COMPUTE=cpu`; the GPU was busy). **CUDA re-check pending.**
+- **Verified on CPU** (`MLSV_COMPUTE=cpu`) **and CUDA** (RTX 4090, re-checked 2026-09-29 while the GPU was idle):
   - Ridge bit-identical to both parents (1100 swaps + gradients, hashed); LASSO / elastic net identical to 302cb72; OLS identical to 38254dc.
   - OLS drift vs Householder-QR reference, 3 seeds × random and attack-style swaps: worst test-prediction error 1.1e-8 (Warfarin), 1.9e-9 (House), 6.1e-13…3.9e-10 (Loan).
   - ℓ1 KKT: ≤ 1.55e-9 relative over 324 fresh fits, ≤ 1.01e-9 over ~17k incremental `setRow`, feature-sign search never unconverged.
   - `poisonGradient` vs central FD, 4 models × 3 datasets × W_tr/W_val after 60 swaps: worst 7.2e-4 (Warfarin OLS W_tr, gradients ~2e-7 — identical on 38254dc), all others ≤ 4.8e-4. LASSO/EN every coordinate at generic points; at cloned starting points only Warfarin LASSO's duplicate columns miss (no derivative exists; see 2026-09-28).
-- **Attack effect** (app defaults, λ by CV, 30 iterations max, seeds 5–7; test MSE as multiples of clean, geometric mean and range):
+  - CUDA: OLS drift worst test-prediction error 3.3e-9 (Warfarin), 1.6e-9 (House), 2.5e-10 (Loan) over the same 3 seeds × both scenarios, `setRow` 3–5× faster than CPU; `poisonGradient` vs FD worst 9.8e-4 (House elastic net W_val; CPU 4.8e-4), Warfarin OLS W_tr 7.2e-4 as on CPU, all others ≤ 8.2e-4.
+- **Attack effect** (app defaults, λ by CV, ≤ 30 iterations, CPU, 10 seeds 5–14 = 240 runs; test MSE as a multiple of clean — geometric mean / median (min–max)):
 
-| Dataset | Model | 8%: label-flip start → after attack | 20%: label-flip start → after attack |
-|---|---|---|---|
-| Warfarin | OLS | ×9.7 (7.9–12.7) → ×10.2 (7.6–14.2) | ×23.1 (19.0–25.9) → ×26.7 (22.5–30.6) |
-| Warfarin | ridge | ×7.2 (6.6–8.0) → ×13.0 (9.4–18.0) | ×21.6 (19.8–24.3) → ×34.0 (26.2–41.7) |
-| Warfarin | LASSO | ×6.9 (6.1–8.7) → ×15.9 (12.1–21.8) | ×22.7 (20.4–27.0) → ×41.8 (30.5–60.1) |
-| Warfarin | elastic net | ×7.8 (6.8–9.5) → ×15.4 (7.4–29.8) | ×23.5 (20.5–28.1) → ×44.8 (32.7–65.0) |
-| House | OLS | ×10.0 (8.4–14.1) → ×53.5 (34.5–104) | ×23.6 (18.5–27.5) → ×90.3 (38.8–400) |
-| House | ridge | ×5.0 (4.5–5.6) → ×7.7 (7.0–9.0) | ×13.3 (12.1–14.7) → ×18.2 (16.0–21.0) |
-| House | LASSO | ×7.5 (4.0–12.6) → ×14.9 (6.6–27.2) | ×19.1 (13.5–28.0) → ×35.9 (22.7–56.0) |
-| House | elastic net | ×5.6 (5.0–6.4) → ×10.1 (9.0–12.4) | ×15.3 (13.4–17.7) → ×25.6 (17.7–32.9) |
-| Loan | OLS | ×1.12 (1.09–1.16) → ×1.83 (1.67–1.95) | ×1.56 (1.43–1.71) → ×2.65 (2.43–2.78) |
-| Loan | ridge | ×1.12 (1.09–1.15) → ×1.74 (1.47–1.99) | ×1.56 (1.48–1.60) → ×2.62 (2.10–3.04) |
-| Loan | LASSO | ×1.14 (1.10–1.16) → ×1.75 (1.60–1.90) | ×1.63 (1.56–1.67) → ×2.52 (2.33–2.93) |
-| Loan | elastic net | ×1.13 (1.11–1.15) → ×1.82 (1.74–1.92) | ×1.58 (1.50–1.63) → ×2.66 (2.44–2.80) |
+| Dataset | Model | Poison | Label-flip start | After attack | Seeds |
+|---|---|---|---|---|---|
+| House | OLS | 8% | ×9.00 / ×8.88 (5.09–14.1) | ×32.5 / ×36.1 (10.6–104) | 10 |
+| House | OLS | 20% | ×23.4 / ×23.1 (14.2–61.8) | ×43.6 / ×39.6 (16.5–400) | 10 |
+| House | ridge | 8% | ×5.83 / ×5.45 (4.49–8.84) | ×9.61 / ×9.47 (7.01–16.0) | 10 |
+| House | ridge | 20% | ×16.1 / ×14.6 (12.1–23.4) | ×23.1 / ×23.0 (16.0–38.1) | 10 |
+| House | LASSO | 8% | ×6.81 / ×6.82 (3.90–13.1) | ×12.7 / ×10.6 (6.55–27.2) | 10 |
+| House | LASSO | 20% | ×19.5 / ×18.9 (12.4–40.3) | ×39.1 / ×34.7 (22.7–105) | 10 |
+| House | elastic net | 8% | ×6.45 / ×6.24 (5.02–9.94) | ×12.8 / ×12.7 (9.02–19.1) | 10 |
+| House | elastic net | 20% | ×18.2 / ×17.0 (13.4–27.0) | ×32.1 / ×34.0 (17.7–42.8) | 10 |
+| Warfarin | OLS | 8% | ×9.09 / ×8.82 (6.84–14.2) | ×9.67 / ×8.53 (7.14–15.9) | 10 |
+| Warfarin | OLS | 20% | ×23.6 / ×24.7 (18.4–33.3) | ×26.3 / ×26.2 (18.7–39.1) | 10 |
+| Warfarin | ridge | 8% | ×6.19 / ×6.27 (4.77–8.01) | ×8.28 / ×9.80 (3.74–18.0) | 10 |
+| Warfarin | ridge | 20% | ×21.2 / ×20.8 (17.3–25.6) | ×25.4 / ×24.5 (17.9–41.7) | 10 |
+| Warfarin | LASSO | 8% | ×6.57 / ×6.16 (5.39–8.65) | ×13.1 / ×12.8 (9.05–21.8) | 10 |
+| Warfarin | LASSO | 20% | ×22.6 / ×21.7 (17.1–29.1) | ×38.0 / ×39.1 (25.7–60.1) | 10 |
+| Warfarin | elastic net | 8% | ×7.57 / ×7.17 (6.19–10.4) | ×15.4 / ×15.9 (7.35–29.8) | 10 |
+| Warfarin | elastic net | 20% | ×24.0 / ×23.0 (18.5–31.4) | ×40.6 / ×42.5 (23.1–65.0) | 10 |
+| Loan | OLS | 8% | ×1.18 / ×1.16 (1.09–1.34) | ×1.63 / ×1.75 (1.21–1.97) | 10 |
+| Loan | OLS | 20% | ×1.66 / ×1.68 (1.43–1.86) | ×2.37 / ×2.50 (1.88–3.06) | 10 |
+| Loan | ridge | 8% | ×1.19 / ×1.17 (1.09–1.33) | ×1.80 / ×1.86 (1.47–2.05) | 10 |
+| Loan | ridge | 20% | ×1.66 / ×1.64 (1.48–1.86) | ×2.71 / ×2.82 (2.10–3.16) | 10 |
+| Loan | LASSO | 8% | ×1.16 / ×1.15 (1.10–1.24) | ×1.74 / ×1.76 (1.60–1.90) | 10 |
+| Loan | LASSO | 20% | ×1.66 / ×1.67 (1.55–1.87) | ×2.57 / ×2.60 (2.32–2.93) | 10 |
+| Loan | elastic net | 8% | ×1.16 / ×1.15 (1.11–1.28) | ×1.80 / ×1.79 (1.66–1.97) | 10 |
+| Loan | elastic net | 20% | ×1.65 / ×1.65 (1.50–1.89) | ×2.72 / ×2.76 (2.44–2.89) | 10 |
 
-- **House OLS is heavy-tailed and path-dependent.** The pre-integration ×545 (8%) / ×84 (20%) was seed 5 on drifting fits; the same seed now gives ×104 / ×400 from an identical starting point. Both sets of final points do that damage under an exact fit — the attack follows a sharp objective, so small solver differences send it down different paths. Quote House OLS as a range, not a single figure.
-- Warfarin OLS gains little beyond the label flips (one-hot snap, DEC-004, unchanged). Every run now takes ≥ 15 iterations (`MIN_ITERS`); slowest run 68 s (House, CPU).
+- **House OLS is heavy-tailed and path-dependent.** The pre-integration ×545 (8%) / ×84 (20%) was seed 5 on drifting fits; the same seed now gives ×104 / ×400 from an identical starting point, the extremes of the 10-seed range. Both sets of final points do that damage under an exact fit — the attack follows a sharp objective, so small solver differences send it down different paths. Quote House OLS by median and range, never a single run.
+- **Objective mismatch**: in 12 of 240 runs test MSE ends below the label-flip start (8 of them Warfarin ridge; worst House OLS 20% seed 12, ×61.8 → ×24.0). The attack never lowers its objective, but the default W_tr is training MSE + λΩ (Eq. 8), which does not always carry over to test error; W_val targets held-out error.
+- Warfarin OLS gains little beyond the label flips (one-hot snap, DEC-004, unchanged). Every run now takes ≥ 15 iterations (`MIN_ITERS`); 15–30 iterations observed, slowest run 103 s (House, CPU).
