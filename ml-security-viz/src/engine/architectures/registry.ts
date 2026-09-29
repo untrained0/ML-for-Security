@@ -59,6 +59,11 @@ export interface TraceFrame {
   preTriggerAccuracy?: number; // test accuracy of θ_T, just before the trigger
   vanillaTriggerAccuracy?: number; // the same trigger fed to the clean trajectory θ̃_T (Table 1 baseline)
   accumulatedRounds?: number;  // accumulative rounds actually run
+
+  // Federated setting (Pang et al. 2021, Algorithm 2): the poisoners submit gradients, not images
+  updateNorm?: number;         // norm of the aggregate update submitted this round, before the server's clipping
+  clipFactor?: number;         // factor the server's clipping kept (1 = not clipped)
+  directAttackAccuracy?: number; // Table 3 baseline: one direct −s·∇L(S_val) update on the clean trajectory θ̃_T
   velocityNorm?: number;       // ‖v_t‖, the victim optimiser's momentum buffer (carried into the trigger step)
 
   // Parameter-space vectors as 2-D coordinates in the plane they span (exact angles and relative
@@ -119,8 +124,11 @@ export interface AlgorithmModule {
    */
   score?: (rawModel: any, x: number[]) => number;
 
-  /** Optional: step-by-step explanation cards for guided learning (Transformer Explainer-style) */
-  explainerSteps?: ExplainerStep[];
+  /**
+   * Optional: step-by-step explanation cards for guided learning (Transformer Explainer-style); a
+   * function of the merged config when the module offers several settings.
+   */
+  explainerSteps?: ExplainerStep[] | ((config: Record<string, any>) => ExplainerStep[]);
 
   /**
    * Optional: heading of the control panel's model section (default 'SVM Model' / 'Regression

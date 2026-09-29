@@ -31,7 +31,6 @@ const METER: Record<string, string> = {
 export default function ExplainerOverlay() {
   const { activeAlgorithm, algorithmConfig, attackTrace, currentIteration } = useStore();
   const alg = getAlgorithm(activeAlgorithm);
-  const steps = alg.explainerSteps;
 
   const [isOpen, setIsOpen] = useState(false);
   // `null` means "follow the attack"; any number is a step the user picked.
@@ -43,6 +42,10 @@ export default function ExplainerOverlay() {
   const config = useMemo(
     () => ({ ...alg.defaultConfig, ...algorithmConfig }),
     [alg, algorithmConfig]
+  );
+  const steps = useMemo(
+    () => (typeof alg.explainerSteps === 'function' ? alg.explainerSteps(config) : alg.explainerSteps),
+    [alg, config]
   );
 
   const frame = attackTrace && attackTrace.length > 0 ? attackTrace[currentIteration] : null;

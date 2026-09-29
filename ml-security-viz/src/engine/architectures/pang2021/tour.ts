@@ -24,6 +24,6 @@ export const pangTourSteps: TourStep[] = [
   },
   {
     title: 'How Big Is the Effect?',
-    content: 'Online, the damage is a few points per trigger step: at the defaults about 6 points on two-class CIFAR-10 against under 1 for the same trigger on the honest model, and about 4 on MNIST. The paper\'s online Table 1 reports 3–11 points; its drops to 10–30% come from the federated setting, where the attacker submits gradients instead of images.',
+    content: 'Online, the damage is a few points per trigger step: at the defaults about 6 points on two-class CIFAR-10 against under 1 for the same trigger on the honest model, and about 4 on MNIST. The paper\'s online Table 1 reports 3–11 points; its drops to 10–30% come from the federated setting, where the attacker submits gradients instead of images — choose it under "Setting" in the attack panel.',
   },
 ];
