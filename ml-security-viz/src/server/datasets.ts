@@ -107,7 +107,7 @@ function imageSource(source: string): ImageSource {
 
 export interface ImageSampleRequest {
   source: string;
-  classes: number[];            // two class ids; the first becomes label +1
+  classes: number[];            // two class ids (the first becomes label +1), or more for a multi-class sample
   train: number;
   valid: number;
   test: number | 'all';         // 'all' = the complete test split of those classes
@@ -120,15 +120,16 @@ export interface ImageSampleRequest {
  */
 export function sampleImages(req: ImageSampleRequest): Buffer {
   const src = imageSource(req.source);
-  const [a, b] = req.classes;
-  if (req.classes.length !== 2 || a === b || [a, b].some(c => !(c >= 0 && c < src.classNames.length))) {
-    throw new DatasetError(`classes must be two distinct ids in 0–${src.classNames.length - 1}`);
+  const want = req.classes;
+  if (want.length < 2 || new Set(want).size !== want.length || want.some(c => !(c >= 0 && c < src.classNames.length))) {
+    throw new DatasetError(`classes must be two or more distinct ids in 0–${src.classNames.length - 1}`);
   }
-  const of = (s: ImageSplit) => Array.from({ length: s.count }, (_, i) => i).filter(i => s.labels[i] === a || s.labels[i] === b);
+  const keep = new Set(want);
+  const of = (s: ImageSplit) => Array.from({ length: s.count }, (_, i) => i).filter(i => keep.has(s.labels[i]));
 
   const pool = shuffle(of(src.train));
   if (req.train + req.valid > pool.length) {
-    throw new DatasetError(`only ${pool.length} training images of classes ${a},${b}`);
+    throw new DatasetError(`only ${pool.length} training images of classes ${want.join(',')}`);
   }
   const testPool = of(src.test);
   const testIdx = req.test === 'all' ? testPool : shuffle(testPool).slice(0, req.test);
@@ -142,8 +143,8 @@ export function sampleImages(req: ImageSampleRequest): Buffer {
   const header = Buffer.from(JSON.stringify({
     source: req.source,
     shape: src.shape,
-    classes: [a, b],
-    classNames: [src.classNames[a], src.classNames[b]],
+    classes: want,
+    classNames: want.map(c => src.classNames[c]),
     splits: Object.fromEntries(parts.map(p => [p.name, { count: p.idx.length, labels: p.idx.map(i => p.split.labels[i]) }])),
   }), 'utf8');
   const body = Buffer.alloc(parts.reduce((s, p) => s + p.idx.length, 0) * px);

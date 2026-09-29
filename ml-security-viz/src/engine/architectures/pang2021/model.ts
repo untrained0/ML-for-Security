@@ -36,13 +36,25 @@ export interface Norm {
   scale: number;      // 1/√d
 }
 
-/** The live model. `sizes` = [d, h_1, …, h_k, 1]; k = 0 is logistic regression. */
+/**
+ * The live model. `sizes` = [d, h_1, …, h_k, K]; k = 0 is logistic regression. K = 1 is the binary
+ * victim (one logit, labels ±1, logistic loss); K ≥ 2 is a softmax head over classes 0 … K−1 with
+ * cross-entropy (an ablation option, used with the 10-class samples).
+ */
 export interface Net {
   sizes: number[];
   activation: Activation;
-  /** Every parameter, layer by layer: W_l (out × in, row-major), then b_l. */
+  /** Every parameter, layer by layer: W_l (out × in, row-major), b_l, then γ_l, β_l if batch norm. */
   theta: Float64Array;
   norm: Norm;
+  /**
+   * Batch norm after every hidden linear layer (ablation option, off by default). Train-mode
+   * passes normalise with the batch's own statistics — so a sample's gradient depends on the whole
+   * batch — and eval-mode passes with the running statistics in `bnState`, as in PyTorch.
+   */
+  bn?: boolean;
+  /** Running statistics per hidden layer: mean (out values) then variance (out values). */
+  bnState?: Float64Array;
 }
 
 /**
@@ -56,10 +68,16 @@ export interface PackedNet {
   norm: Norm;
   params: string;
   bits: 32 | 64;
+  bn?: boolean;
+  bnState?: string;   // base64 float64
 }
 
 /** A parameter-space vector, laid out like `theta`. */
 export type Grad = Float64Array;
+
+/** PyTorch's BatchNorm1d defaults. */
+const BN_EPS = 1e-5;
+const BN_MOMENTUM = 0.1;
 
 // ── layout ──
 
@@ -67,37 +85,51 @@ interface Layer {
   in: number; out: number;
   W: number;          // offset of W_l in theta
   b: number;          // offset of b_l in theta
+  g: number;          // offset of γ_l (−1 without batch norm; never on the output layer)
+  beta: number;       // offset of β_l
+  run: number;        // offset of this layer's running mean in bnState (variance follows)
   scale: number;      // factor on this layer's input: 1 on x̃ (already 1/√d), 1/√in on hidden units
 }
 
-const layoutCache = new Map<string, { layers: Layer[]; total: number }>();
+const layoutCache = new Map<string, { layers: Layer[]; total: number; running: number }>();
 
-function layout(sizes: number[]) {
-  const key = sizes.join(',');
+function layout(sizes: number[], bn = false) {
+  const key = sizes.join(',') + (bn ? ':bn' : '');
   let lay = layoutCache.get(key);
   if (!lay) {
     const layers: Layer[] = [];
-    let off = 0;
+    let off = 0, run = 0;
     for (let l = 0; l + 1 < sizes.length; l++) {
       const inp = sizes[l], out = sizes[l + 1];
-      layers.push({ in: inp, out, W: off, b: off + out * inp, scale: l === 0 ? 1 : 1 / Math.sqrt(inp) });
+      const hidden = l + 2 < sizes.length;
+      const L: Layer = { in: inp, out, W: off, b: off + out * inp, g: -1, beta: -1, run: -1, scale: l === 0 ? 1 : 1 / Math.sqrt(inp) };
       off += out * inp + out;
+      if (bn && hidden) {
+        L.g = off; L.beta = off + out; off += 2 * out;
+        L.run = run; run += 2 * out;
+      }
+      layers.push(L);
     }
-    lay = { layers, total: off };
+    lay = { layers, total: off, running: run };
     layoutCache.set(key, lay);
   }
   return lay;
 }
 
-export function paramCount(sizes: number[]): number {
-  return layout(sizes).total;
+export function paramCount(sizes: number[], bn = false): number {
+  return layout(sizes, bn).total;
+}
+
+/** Number of outputs: 1 for the binary victim, K for a softmax head. */
+export function numOutputs(m: { sizes: number[] }): number {
+  return m.sizes[m.sizes.length - 1];
 }
 
 /** "784 → 64 → 1, ReLU" */
-export function describeNet(net: { sizes: number[]; activation: Activation }): string {
+export function describeNet(net: { sizes: number[]; activation: Activation; bn?: boolean }): string {
   return net.sizes.length <= 2
     ? `logistic regression, ${net.sizes[0]} inputs`
-    : `${net.sizes.join(' → ')}, ${net.activation === 'relu' ? 'ReLU' : 'tanh'}`;
+    : `${net.sizes.join(' → ')}, ${net.activation === 'relu' ? 'ReLU' : 'tanh'}${net.bn ? ', batch norm' : ''}`;
 }
 
 // ── activations: a = s·φ(z), with the next layer's input scale s folded in ──
@@ -129,6 +161,16 @@ export function sigmoid(z: number): number {
 /** ℓ = log(1 + e^{−m}) for the margin m = y·z, without overflow */
 export function logisticLoss(margin: number): number {
   return margin > 0 ? Math.log1p(Math.exp(-margin)) : -margin + Math.log1p(Math.exp(margin));
+}
+
+/** Softmax of z[o … o+K) into p[o … o+K); returns log Σ e^z (for the cross-entropy). */
+function softmaxInto(z: Float64Array, o: number, K: number, p: Float64Array): number {
+  let mx = -Infinity;
+  for (let k = 0; k < K; k++) mx = Math.max(mx, z[o + k]);
+  let sum = 0;
+  for (let k = 0; k < K; k++) { p[o + k] = Math.exp(z[o + k] - mx); sum += p[o + k]; }
+  for (let k = 0; k < K; k++) p[o + k] /= sum;
+  return mx + Math.log(sum);
 }
 
 // ── input normalisation ──
@@ -176,21 +218,32 @@ function gaussian(): number {
  * A fresh victim. Logistic regression starts at θ = 0, as before. A hidden layer's weights are
  * drawn N(0, g²) — its input already has unit scale (x̃ has norm ≈ 1, hidden units carry 1/√in) —
  * with the He gain g² = 2 for ReLU and 1 for tanh; the output layer uses g = 1; biases start at 0.
+ * Batch norm starts at γ = 1, β = 0, running mean 0 and variance 1 (PyTorch's defaults).
  */
-export function createNet(sizes: number[], activation: Activation, norm: Norm): Net {
-  const { layers, total } = layout(sizes);
+export function createNet(sizes: number[], activation: Activation, norm: Norm, bn = false): Net {
+  const useBn = bn && sizes.length > 2;
+  const { layers, total, running } = layout(sizes, useBn);
   const theta = new Float64Array(total);
   if (layers.length > 1) {
     layers.forEach((L, l) => {
       const g = l === layers.length - 1 ? 1 : activation === 'relu' ? Math.SQRT2 : 1;
       for (let k = 0; k < L.out * L.in; k++) theta[L.W + k] = g * gaussian();
+      if (L.g >= 0) for (let k = 0; k < L.out; k++) theta[L.g + k] = 1;
     });
   }
-  return { sizes: [...sizes], activation, theta, norm };
+  const net: Net = { sizes: [...sizes], activation, theta, norm };
+  if (useBn) {
+    net.bn = true;
+    net.bnState = new Float64Array(running);
+    for (const L of layers) if (L.run >= 0) for (let k = 0; k < L.out; k++) net.bnState[L.run + L.out + k] = 1;
+  }
+  return net;
 }
 
 export function cloneModel(m: Net): Net {
-  return { sizes: m.sizes, activation: m.activation, theta: m.theta.slice(), norm: m.norm };
+  const c: Net = { sizes: m.sizes, activation: m.activation, theta: m.theta.slice(), norm: m.norm };
+  if (m.bn) { c.bn = true; c.bnState = m.bnState!.slice(); }
+  return c;
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -206,12 +259,13 @@ function fromBase64(b64: string): Uint8Array {
   return out;
 }
 
+const bytesOf = (a: Float64Array | Float32Array) => new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+
 export function packNet(m: Net, bits: 32 | 64 = 64): PackedNet {
   const arr = bits === 64 ? m.theta : Float32Array.from(m.theta);
-  return {
-    sizes: m.sizes, activation: m.activation, norm: m.norm, bits,
-    params: toBase64(new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength)),
-  };
+  const p: PackedNet = { sizes: m.sizes, activation: m.activation, norm: m.norm, bits, params: toBase64(bytesOf(arr)) };
+  if (m.bn) { p.bn = true; p.bnState = toBase64(bytesOf(m.bnState!)); }
+  return p;
 }
 
 const unpacked = new WeakMap<object, Net>();
@@ -221,8 +275,9 @@ export function unpackNet(raw: Net | PackedNet): Net {
   if (!raw) throw new Error('No model');
   if ((raw as Net).theta) {
     const n = raw as Net;
-    // A Net that crossed JSON has a plain array for theta
-    return n.theta instanceof Float64Array ? n : { ...n, theta: Float64Array.from(n.theta as any) };
+    // A Net that crossed JSON has plain arrays for theta and the running statistics
+    if (n.theta instanceof Float64Array && (!n.bn || n.bnState instanceof Float64Array)) return n;
+    return { ...n, theta: Float64Array.from(n.theta as any), ...(n.bn ? { bnState: Float64Array.from(n.bnState as any) } : {}) };
   }
   let net = unpacked.get(raw);
   if (!net) {
@@ -232,20 +287,25 @@ export function unpackNet(raw: Net | PackedNet): Net {
     const theta = p.bits === 32
       ? Float64Array.from(new Float32Array(bytes.buffer, 0, bytes.length / 4))
       : new Float64Array(bytes.buffer, 0, bytes.length / 8);
-    if (theta.length !== paramCount(p.sizes)) throw new Error('Packed model has the wrong number of parameters');
+    if (theta.length !== paramCount(p.sizes, !!p.bn)) throw new Error('Packed model has the wrong number of parameters');
     net = { sizes: p.sizes, activation: p.activation, theta, norm: p.norm };
+    if (p.bn) {
+      const b = fromBase64(p.bnState!);
+      net.bn = true;
+      net.bnState = new Float64Array(b.buffer, 0, b.length / 8);
+    }
     unpacked.set(raw, net);
   }
   return net;
 }
 
-// ── forward ──
+// ── forward (eval mode: batch norm uses the running statistics) ──
 
-/** z(x) for one raw pixel vector. */
-export function logit(raw: Net | PackedNet, x: number[]): number {
+/** All K outputs for one raw pixel vector. */
+export function outputs(raw: Net | PackedNet, x: number[]): Float64Array {
   const m = unpackNet(raw);
-  const { layers } = layout(m.sizes);
-  const d = m.sizes[0], th = m.theta;
+  const { layers } = layout(m.sizes, !!m.bn);
+  const d = m.sizes[0], th = m.theta, rs = m.bnState;
   const { mu, jac } = pixelNorm(m.norm, d);
   let a = new Float64Array(d);
   for (let j = 0; j < d; j++) a[j] = (x[j] - mu[j]) * jac[j];
@@ -257,25 +317,42 @@ export function logit(raw: Net | PackedNet, x: number[]): number {
       let z = th[L.b + k];
       const row = L.W + k * L.in;
       for (let j = 0; j < L.in; j++) z += th[row + j] * a[j];
+      if (L.g >= 0) z = th[L.g + k] * (z - rs![L.run + k]) / Math.sqrt(rs![L.run + L.out + k] + BN_EPS) + th[L.beta + k];
       next[k] = last ? z : act(m.activation, z, s);
     }
     a = next;
   }
-  return a[0];
+  return a;
+}
+
+/** z(x) of the binary victim (the first output of a softmax head). */
+export function logit(raw: Net | PackedNet, x: number[]): number {
+  return outputs(raw, x)[0];
 }
 
 export function predictProb(m: Net | PackedNet, x: number[]): number {
   return sigmoid(logit(m, x));
 }
 
-/** Accuracy and mean logistic loss in one pass. */
+/** Accuracy and mean loss in one pass (logistic for K = 1, cross-entropy for a softmax head). */
 export function evaluate(m: Net, X: number[][], y: number[]): { acc: number; loss: number } {
+  const K = numOutputs(m);
   let correct = 0, loss = 0;
+  const p = new Float64Array(K);
   for (let i = 0; i < X.length; i++) {
-    const yi = y[i] > 0 ? 1 : -1;
-    const z = logit(m, X[i]);
-    if ((z >= 0 ? 1 : -1) === yi) correct++;
-    loss += logisticLoss(yi * z);
+    if (K === 1) {
+      const yi = y[i] > 0 ? 1 : -1;
+      const z = logit(m, X[i]);
+      if ((z >= 0 ? 1 : -1) === yi) correct++;
+      loss += logisticLoss(yi * z);
+    } else {
+      const z = outputs(m, X[i]);
+      const lse = softmaxInto(z, 0, K, p);
+      let best = 0;
+      for (let k = 1; k < K; k++) if (z[k] > z[best]) best = k;
+      if (best === y[i]) correct++;
+      loss += lse - z[y[i]];
+    }
   }
   return X.length ? { acc: correct / X.length, loss: loss / X.length } : { acc: 0, loss: 0 };
 }
@@ -290,27 +367,43 @@ export function computeLoss(m: Net, X: number[][], y: number[]): number {
 
 // ── first and second derivatives of a batch ──
 
+/** Batch-norm quantities of one hidden layer for a pass (batch or running statistics). */
+interface BnCache {
+  s: Float64Array;      // 1/√(var + ε) per unit
+  c: Float64Array;      // z − μ (n × out)
+  xhat: Float64Array;   // (z − μ)·s
+  mean: Float64Array;   // μ used (batch or running)
+  varB: Float64Array;   // batch variance (biased), for the running update
+  train: boolean;
+}
+
 /**
  * One forward and backward pass over a batch, kept for the R-operator:
- *   A[l]  input of layer l (n × in_l), A[0] = x̃;   Z[l]  its pre-activation (n × out_l);
- *   D[l]  = ∂L/∂Z[l] (the 1/n included);            r_i = ∂ℓ/∂z = σ(z_i) − 1[y_i = +1],
- *   h_i = ∂²ℓ/∂z² = σ(z_i)(1 − σ(z_i));             grad = ∇_θ L(S; θ).
+ *   A[l]  input of layer l (n × in_l), A[0] = x̃;   Zl[l] its linear output (n × out_l);
+ *   Y[l]  the activation's input (Zl, or its batch-norm output);  D[l] = ∂L/∂Zl[l] (1/n included);
+ *   DY[l] = ∂L/∂Y[l] for batch-norm layers;          P  σ(z) (K = 1) or softmax (n × K);
+ *   grad = ∇_θ L(S; θ).
+ * `mode` 'train' normalises with the batch's statistics (the reference code's crafting mode), 'eval'
+ * with the running ones; without batch norm the two are the same.
  */
 export interface BatchStats {
   net: Net;
   n: number;
+  y: number[];
   A: Float64Array[];
-  Z: Float64Array[];
+  Zl: Float64Array[];
+  Y: Float64Array[];
+  bn: (BnCache | null)[];
   D: Float64Array[];
-  r: Float64Array;
-  h: Float64Array;
+  DY: (Float64Array | null)[];
+  P: Float64Array;
   grad: Grad;
 }
 
-export function batchStats(m: Net, X: number[][], y: number[]): BatchStats {
-  const { layers, total } = layout(m.sizes);
+export function batchStats(m: Net, X: number[][], y: number[], mode: 'train' | 'eval' = 'train'): BatchStats {
+  const { layers, total } = layout(m.sizes, !!m.bn);
   const n = X.length, d = m.sizes[0], th = m.theta, f = m.activation;
-  const nL = layers.length;
+  const nL = layers.length, K = numOutputs(m);
   const { mu, jac } = pixelNorm(m.norm, d);
 
   const A: Float64Array[] = [new Float64Array(n * d)];
@@ -318,7 +411,7 @@ export function batchStats(m: Net, X: number[][], y: number[]): BatchStats {
     const x = X[i], o = i * d;
     for (let j = 0; j < d; j++) A[0][o + j] = (x[j] - mu[j]) * jac[j];
   }
-  const Z: Float64Array[] = [];
+  const Zl: Float64Array[] = [], Y: Float64Array[] = [], bn: (BnCache | null)[] = [];
   for (let l = 0; l < nL; l++) {
     const L = layers[l], a = A[l], z = new Float64Array(n * L.out);
     for (let i = 0; i < n; i++) {
@@ -330,25 +423,50 @@ export function batchStats(m: Net, X: number[][], y: number[]): BatchStats {
         z[i * L.out + k] = s;
       }
     }
-    Z.push(z);
+    Zl.push(z);
+    let yv = z, cache: BnCache | null = null;
+    if (L.g >= 0) {
+      const O = L.out, train = mode === 'train';
+      const mean = new Float64Array(O), varB = new Float64Array(O), s = new Float64Array(O);
+      for (let i = 0; i < n; i++) for (let k = 0; k < O; k++) mean[k] += z[i * O + k] / n;
+      for (let i = 0; i < n; i++) for (let k = 0; k < O; k++) varB[k] += (z[i * O + k] - mean[k]) ** 2 / n;
+      const useMean = train ? mean : m.bnState!.subarray(L.run, L.run + O);
+      for (let k = 0; k < O; k++) s[k] = 1 / Math.sqrt((train ? varB[k] : m.bnState![L.run + O + k]) + BN_EPS);
+      const c = new Float64Array(n * O), xhat = new Float64Array(n * O);
+      yv = new Float64Array(n * O);
+      for (let i = 0; i < n; i++) for (let k = 0; k < O; k++) {
+        const q = i * O + k;
+        c[q] = z[q] - useMean[k];
+        xhat[q] = c[q] * s[k];
+        yv[q] = th[L.g + k] * xhat[q] + th[L.beta + k];
+      }
+      cache = { s, c, xhat, mean: Float64Array.from(useMean), varB, train };
+    }
+    bn.push(cache);
+    Y.push(yv);
     if (l < nL - 1) {
-      const sc = layers[l + 1].scale, next = new Float64Array(z.length);
-      for (let q = 0; q < z.length; q++) next[q] = act(f, z[q], sc);
+      const sc = layers[l + 1].scale, next = new Float64Array(yv.length);
+      for (let q = 0; q < yv.length; q++) next[q] = act(f, yv[q], sc);
       A.push(next);
     }
   }
 
-  const zOut = Z[nL - 1];
-  const r = new Float64Array(n), h = new Float64Array(n);
+  // Output: D[L] = ∂L/∂z = (p − onehot)/n (K = 1: σ(z) − 1[y = +1])
+  const zOut = Zl[nL - 1];
+  const P = new Float64Array(n * K), Dout = new Float64Array(n * K);
   for (let i = 0; i < n; i++) {
-    const p = sigmoid(zOut[i]);
-    r[i] = p - (y[i] > 0 ? 1 : 0);
-    h[i] = p * (1 - p);
+    if (K === 1) {
+      P[i] = sigmoid(zOut[i]);
+      Dout[i] = (P[i] - (y[i] > 0 ? 1 : 0)) / n;
+    } else {
+      softmaxInto(zOut, i * K, K, P);
+      for (let k = 0; k < K; k++) Dout[i * K + k] = (P[i * K + k] - (k === y[i] ? 1 : 0)) / n;
+    }
   }
 
   const grad = new Float64Array(total);
-  const D: Float64Array[] = new Array(nL);
-  D[nL - 1] = r.map(v => v / n);
+  const D: Float64Array[] = new Array(nL), DY: (Float64Array | null)[] = new Array(nL).fill(null);
+  D[nL - 1] = Dout;
   for (let l = nL - 1; l >= 0; l--) {
     const L = layers[l], a = A[l], dl = D[l];
     for (let i = 0; i < n; i++) {
@@ -362,8 +480,8 @@ export function batchStats(m: Net, X: number[][], y: number[]): BatchStats {
       }
     }
     if (l > 0) {
-      // D[l−1] = a′(Z[l−1]) ⊙ W_lᵀ D[l]
-      const prev = new Float64Array(n * L.in), zp = Z[l - 1];
+      // ∂L/∂Y[l−1] = a′(Y[l−1]) ⊙ W_lᵀ D[l]
+      const P1 = layers[l - 1], prev = new Float64Array(n * L.in), yp = Y[l - 1];
       for (let i = 0; i < n; i++) {
         const pi = i * L.in;
         for (let k = 0; k < L.out; k++) {
@@ -372,22 +490,57 @@ export function batchStats(m: Net, X: number[][], y: number[]): BatchStats {
           const row = L.W + k * L.in;
           for (let j = 0; j < L.in; j++) prev[pi + j] += th[row + j] * dk;
         }
-        for (let j = 0; j < L.in; j++) prev[pi + j] *= act1(f, zp[pi + j], L.scale);
+        for (let j = 0; j < L.in; j++) prev[pi + j] *= act1(f, yp[pi + j], L.scale);
       }
-      D[l - 1] = prev;
+      const cache = bn[l - 1];
+      if (!cache) { D[l - 1] = prev; continue; }
+      // Batch norm: ∇γ = Σ dy·x̂, ∇β = Σ dy, and ∂L/∂z through the (batch or running) statistics
+      DY[l - 1] = prev;
+      D[l - 1] = bnBackward(P1, th, cache, prev, n, grad);
     }
   }
-  return { net: m, n, A, Z, D, r, h, grad };
+  return { net: m, n, y, A, Zl, Y, bn, D, DY, P, grad };
 }
 
-/** Accuracy and mean logistic loss of the batch, read off the forward pass already done. */
+/**
+ * Batch-norm backward. With dx̂ = dy·γ: train mode (batch statistics)
+ *   ∂L/∂z = s (dx̂ − mean(dx̂) − x̂ · mean(dx̂ x̂)),
+ * eval mode (running statistics, constants) ∂L/∂z = s·dx̂. Accumulates ∇γ, ∇β into `grad`.
+ */
+function bnBackward(L: Layer, th: Float64Array, c: BnCache, dy: Float64Array, n: number, grad: Float64Array): Float64Array {
+  const O = L.out, out = new Float64Array(n * O);
+  for (let k = 0; k < O; k++) {
+    const g = th[L.g + k];
+    let m1 = 0, m2 = 0, dg = 0, db = 0;
+    for (let i = 0; i < n; i++) {
+      const q = i * O + k, dx = dy[q] * g;
+      dg += dy[q] * c.xhat[q]; db += dy[q];
+      m1 += dx / n; m2 += (dx * c.xhat[q]) / n;
+    }
+    grad[L.g + k] += dg; grad[L.beta + k] += db;
+    for (let i = 0; i < n; i++) {
+      const q = i * O + k, dx = dy[q] * g;
+      out[q] = c.train ? c.s[k] * (dx - m1 - c.xhat[q] * m2) : c.s[k] * dx;
+    }
+  }
+  return out;
+}
+
+/** Accuracy and mean loss of the batch, read off the forward pass already done. */
 export function statsEval(s: BatchStats, y: number[]): { acc: number; loss: number } {
-  const z = s.Z[s.Z.length - 1];
+  const z = s.Zl[s.Zl.length - 1], K = numOutputs(s.net);
   let correct = 0, loss = 0;
   for (let i = 0; i < s.n; i++) {
-    const yi = y[i] > 0 ? 1 : -1;
-    if ((z[i] >= 0 ? 1 : -1) === yi) correct++;
-    loss += logisticLoss(yi * z[i]);
+    if (K === 1) {
+      const yi = y[i] > 0 ? 1 : -1;
+      if ((z[i] >= 0 ? 1 : -1) === yi) correct++;
+      loss += logisticLoss(yi * z[i]);
+    } else {
+      let best = 0;
+      for (let k = 1; k < K; k++) if (z[i * K + k] > z[i * K + best]) best = k;
+      if (best === y[i]) correct++;
+      loss += -Math.log(Math.max(s.P[i * K + y[i]], 1e-300));
+    }
   }
   return s.n ? { acc: correct / s.n, loss: loss / s.n } : { acc: 0, loss: 0 };
 }
@@ -402,25 +555,50 @@ export function lossGradient(m: Net, X: number[][], y: number[]): Grad {
 }
 
 /**
+ * The running statistics after this train-mode pass (PyTorch: r ← (1 − 0.1) r + 0.1 · batch, the
+ * variance unbiased). Returns the same model when there is no batch norm.
+ */
+export function updateRunningStats(m: Net, s: BatchStats): Net {
+  if (!m.bn) return m;
+  const { layers } = layout(m.sizes, true);
+  const next = { ...m, bnState: m.bnState!.slice() };
+  layers.forEach((L, l) => {
+    const c = s.bn[l];
+    if (!c || !c.train) return;
+    const unbias = s.n > 1 ? s.n / (s.n - 1) : 1;
+    for (let k = 0; k < L.out; k++) {
+      next.bnState[L.run + k] = (1 - BN_MOMENTUM) * next.bnState[L.run + k] + BN_MOMENTUM * c.mean[k];
+      next.bnState[L.run + L.out + k] = (1 - BN_MOMENTUM) * next.bnState[L.run + L.out + k] + BN_MOMENTUM * c.varB[k] * unbias;
+    }
+  });
+  return next;
+}
+
+/**
  * Pearlmutter's R-operator in direction v on a batch: returns
  *   Hv  = ∇²_θ L(S; θ) · v, and, when `input` is set,
  *   dXt = R_v{∂L/∂x̃_i} = ∂/∂x̃_i [vᵀ ∇_θ L(S; θ)]   (n × d, normalised-input units).
- * Forward:  R{A[0]} = 0,  R{Z[l]} = W_l R{A[l]} + V_l A[l] + c_l,  R{A[l+1]} = a′(Z[l]) ⊙ R{Z[l]}.
- * Output:   R{D[L]} = h ⊙ R{z} / n.
+ * Forward:  R{A[0]} = 0,  R{Zl[l]} = W_l R{A[l]} + V_l A[l] + c_l,
+ *           batch norm (train): R{μ} = mean R{z}, R{c} = R{z} − R{μ}, R{var} = 2 mean(c R{c}),
+ *             R{s} = −½ s³ R{var}, R{x̂} = s R{c} + c R{s}, R{Y} = R{γ} x̂ + γ R{x̂} + R{β}
+ *             (eval: R{x̂} = s R{z});
+ *           R{A[l+1]} = a′(Y[l]) ⊙ R{Y[l]}.
+ * Output:   R{D[L]} = h ⊙ R{z}/n (K = 1), (p ⊙ R{z} − p (pᵀR{z}))/n (softmax).
  * Backward: R{∇W_l} = R{D[l]} A[l]ᵀ + D[l] R{A[l]}ᵀ,   R{∇b_l} = R{D[l]},
- *           R{D[l−1]} = a″(Z[l−1]) ⊙ R{Z[l−1]} ⊙ W_lᵀD[l] + a′(Z[l−1]) ⊙ (V_lᵀD[l] + W_lᵀR{D[l]}),
- *           R{∂L/∂x̃} = V_1ᵀD[1] + W_1ᵀR{D[1]}.
+ *           R{DY} = a″(Y) ⊙ R{Y} ⊙ W_lᵀD[l] + a′(Y) ⊙ (V_lᵀD[l] + W_lᵀR{D[l]}),
+ *           R{∇γ} = Σ (R{DY} x̂ + DY R{x̂}), R{∇β} = Σ R{DY}, and R{D} through the batch-norm
+ *           backward (bnRBackward); R{∂L/∂x̃} = V_1ᵀD[1] + W_1ᵀR{D[1]}.
  * For logistic regression this reduces to the closed forms (1/n) Σ h_i (vᵀx̃_i) x̃_i and
  * (1/n)[h_i (v_wᵀx̃_i + v_b) w + r_i v_w].
  */
 export function rop(s: BatchStats, v: Grad, input = false): { Hv: Grad; dXt?: Float64Array } {
-  const m = s.net, { layers, total } = layout(m.sizes);
-  const { n, A, Z, D, h } = s;
-  const th = m.theta, f = m.activation, nL = layers.length;
+  const m = s.net, { layers, total } = layout(m.sizes, !!m.bn);
+  const { n, A, Y, D, DY, P } = s;
+  const th = m.theta, f = m.activation, nL = layers.length, K = numOutputs(m);
 
   // Forward
   const RA: (Float64Array | null)[] = [null];
-  const RZ: Float64Array[] = [];
+  const RY: Float64Array[] = [], RX: (Float64Array | null)[] = [], RS: (Float64Array | null)[] = [];
   for (let l = 0; l < nL; l++) {
     const L = layers[l], a = A[l], ra = RA[l], rz = new Float64Array(n * L.out);
     for (let i = 0; i < n; i++) {
@@ -433,18 +611,55 @@ export function rop(s: BatchStats, v: Grad, input = false): { Hv: Grad; dXt?: Fl
         rz[i * L.out + k] = t;
       }
     }
-    RZ.push(rz);
+    let ry = rz, rx: Float64Array | null = null, rs: Float64Array | null = null;
+    const c = s.bn[l];
+    if (c) {
+      const O = L.out;
+      rx = new Float64Array(n * O); ry = new Float64Array(n * O);
+      if (c.train) {
+        rs = new Float64Array(O);
+        for (let k = 0; k < O; k++) {
+          let rmu = 0;
+          for (let i = 0; i < n; i++) rmu += rz[i * O + k] / n;
+          let rvar = 0;
+          for (let i = 0; i < n; i++) rvar += (2 * c.c[i * O + k] * (rz[i * O + k] - rmu)) / n;
+          rs[k] = -0.5 * c.s[k] ** 3 * rvar;
+          for (let i = 0; i < n; i++) {
+            const q = i * O + k;
+            rx[q] = c.s[k] * (rz[q] - rmu) + c.c[q] * rs[k];
+          }
+        }
+      } else {
+        for (let q = 0; q < n * O; q++) rx[q] = c.s[q % O] * rz[q];
+      }
+      for (let i = 0; i < n; i++) for (let k = 0; k < O; k++) {
+        const q = i * O + k;
+        ry[q] = v[L.g + k] * c.xhat[q] + th[L.g + k] * rx[q] + v[L.beta + k];
+      }
+    }
+    RY.push(ry); RX.push(rx); RS.push(rs);
     if (l < nL - 1) {
-      const sc = layers[l + 1].scale, z = Z[l], next = new Float64Array(rz.length);
-      for (let q = 0; q < rz.length; q++) next[q] = act1(f, z[q], sc) * rz[q];
+      const sc = layers[l + 1].scale, yv = Y[l], next = new Float64Array(ry.length);
+      for (let q = 0; q < ry.length; q++) next[q] = act1(f, yv[q], sc) * ry[q];
       RA.push(next);
+    }
+  }
+
+  // Output
+  const rzOut = RY[nL - 1];
+  let RD: Float64Array = new Float64Array(n * K);
+  for (let i = 0; i < n; i++) {
+    if (K === 1) {
+      RD[i] = (P[i] * (1 - P[i]) * rzOut[i]) / n;
+    } else {
+      let pr = 0;
+      for (let k = 0; k < K; k++) pr += P[i * K + k] * rzOut[i * K + k];
+      for (let k = 0; k < K; k++) RD[i * K + k] = (P[i * K + k] * (rzOut[i * K + k] - pr)) / n;
     }
   }
 
   // Backward
   const Hv = new Float64Array(total);
-  let RD = new Float64Array(n);
-  for (let i = 0; i < n; i++) RD[i] = (h[i] * RZ[nL - 1][i]) / n;
   let dXt: Float64Array | undefined;
   for (let l = nL - 1; l >= 0; l--) {
     const L = layers[l], a = A[l], ra = RA[l], dl = D[l];
@@ -475,18 +690,53 @@ export function rop(s: BatchStats, v: Grad, input = false): { Hv: Grad; dXt?: Fl
           if (rd !== 0) for (let j = 0; j < L.in; j++) out[pi + j] += th[row + j] * rd;
         }
         if (back) {
-          const zp = Z[l - 1], rzp = RZ[l - 1];
+          const yp = Y[l - 1], ryp = RY[l - 1];
           for (let j = 0; j < L.in; j++) {
             const q = pi + j;
-            out[q] = act2(f, zp[q], L.scale) * rzp[q] * back[j] + act1(f, zp[q], L.scale) * out[q];
+            out[q] = act2(f, yp[q], L.scale) * ryp[q] * back[j] + act1(f, yp[q], L.scale) * out[q];
           }
         }
       }
-      if (l > 0) RD = out;
-      else dXt = out;
+      if (l === 0) { dXt = out; break; }
+      const c = s.bn[l - 1];
+      RD = c ? bnRBackward(layers[l - 1], th, v, c, DY[l - 1]!, out, RX[l - 1]!, RS[l - 1], n, Hv) : out;
     }
   }
   return { Hv, dXt };
+}
+
+/**
+ * R-operator of the batch-norm backward, given DY = ∂L/∂Y and R{DY}:
+ *   R{∇γ} += Σ (R{DY} x̂ + DY R{x̂}),  R{∇β} += Σ R{DY};  dx̂ = DY γ,  R{dx̂} = R{DY} γ + DY R{γ};
+ *   train: R{D} = R{s}(dx̂ − m₁ − x̂ m₂) + s(R{dx̂} − R{m₁} − R{x̂} m₂ − x̂ R{m₂}),
+ *          m₁ = mean dx̂, m₂ = mean dx̂ x̂, R{m₁} = mean R{dx̂}, R{m₂} = mean(R{dx̂} x̂ + dx̂ R{x̂});
+ *   eval:  R{D} = s R{dx̂}.
+ */
+function bnRBackward(
+  L: Layer, th: Float64Array, v: Grad, c: BnCache, dy: Float64Array, rdy: Float64Array,
+  rx: Float64Array, rs: Float64Array | null, n: number, Hv: Float64Array,
+): Float64Array {
+  const O = L.out, out = new Float64Array(n * O);
+  for (let k = 0; k < O; k++) {
+    const g = th[L.g + k], rg = v[L.g + k];
+    let hg = 0, hb = 0, m1 = 0, m2 = 0, rm1 = 0, rm2 = 0;
+    for (let i = 0; i < n; i++) {
+      const q = i * O + k;
+      hg += rdy[q] * c.xhat[q] + dy[q] * rx[q];
+      hb += rdy[q];
+      const dx = dy[q] * g, rdx = rdy[q] * g + dy[q] * rg;
+      m1 += dx / n; m2 += (dx * c.xhat[q]) / n;
+      rm1 += rdx / n; rm2 += (rdx * c.xhat[q] + dx * rx[q]) / n;
+    }
+    Hv[L.g + k] += hg; Hv[L.beta + k] += hb;
+    for (let i = 0; i < n; i++) {
+      const q = i * O + k, dx = dy[q] * g, rdx = rdy[q] * g + dy[q] * rg;
+      out[q] = c.train
+        ? rs![k] * (dx - m1 - c.xhat[q] * m2) + c.s[k] * (rdx - rm1 - rx[q] * m2 - c.xhat[q] * rm2)
+        : c.s[k] * rdx;
+    }
+  }
+  return out;
 }
 
 /** ∇²_θ L(S; θ) · v */
@@ -558,8 +808,10 @@ export function stepDirection(l: Learner, g: Grad, opt: Optim, momentum = opt.mo
   return out;
 }
 
+/** One step on a batch: the train-mode forward also updates batch norm's running statistics. */
 export function learnerStep(l: Learner, X: number[][], y: number[], opt: Optim, momentum?: number): Learner {
-  return optimStep(l, lossGradient(l.net, X, y), opt, momentum);
+  const s = batchStats(l.net, X, y);
+  return optimStep({ net: updateRunningStats(l.net, s), v: l.v }, s.grad, opt, momentum);
 }
 
 /** Split a set into consecutive mini-batches of size B (the last may be smaller). */
@@ -612,7 +864,7 @@ export function getModelState(
   m: Net, trainX: number[][], trainY: number[], testX: number[][], testY: number[],
   testEval?: { acc: number; loss: number },       // when the caller already evaluated m on the test set
 ) {
-  const { layers } = layout(m.sizes);
+  const { layers } = layout(m.sizes, !!m.bn);
   const out = layers[layers.length - 1];
   let wsq = 0;
   for (const L of layers) for (let k = 0; k < L.out * L.in; k++) wsq += m.theta[L.W + k] ** 2;

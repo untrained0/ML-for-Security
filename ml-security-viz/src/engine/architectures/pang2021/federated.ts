@@ -23,6 +23,12 @@
  * the no-accumulation baseline: the same trigger fed at θ̃_T, and Table 3's direct poisoner — one
  * update −s_d∇L(S_val) at θ̃_T (craft_direct_NEW).
  *
+ * Batch norm (ablation option): as in the reference, every forward pass in train mode updates the
+ * running statistics — for the attacked model the S_T and S_val passes of each round's crafting,
+ * for the honest server its batch, and for every trigger / direct update the batch it forwards.
+ * S_val is a held-out training split, or (`federatedValSource` 'test') a 500-image batch of the test
+ * split like the reference's teloader batch, which then overlaps the test set accuracy is read on.
+ *
  * The monitor (§4's early stop) is simulated by the white-box attacker before each submission, as
  * in the online setting: a round whose update would take test accuracy more than Δacc below θ_0
  * is replaced by the honest aggregate, and the attacker stops accumulating.
@@ -32,6 +38,7 @@ import type { TraceFrame } from '../registry';
 import {
   type Net, type Grad, type Optim, type Learner, type BatchStats, cloneModel, batchStats, lossGradient,
   statsEval, evaluate, computeAccuracy, getModelState, optimStep, stepDirection, packNet, paramDistance,
+  updateRunningStats,
   unpackNet, shuffled, toBatches,
 } from './model';
 import { alignmentParamGradient, alignValue, gaxpy, gdot, gnorm, gscale, planeCoords } from './gradient';
@@ -79,7 +86,10 @@ export function runFederatedAttack(
 ) {
   try {
     const { train, test } = dataset;
-    const valid = dataset.valid?.X?.length ? dataset.valid : test;
+    // S_val: the held-out training split, or a test batch as in the reference (test_batch_size 500)
+    const valid = (config.federatedValSource ?? 'train') === 'test' || !dataset.valid?.X?.length
+      ? (() => { const idx = shuffled(test.X.length).slice(0, 500); return { X: idx.map(i => test.X[i]), y: idx.map(i => (test.Y || test.y)[i]) }; })()
+      : dataset.valid;
     const testY: number[] = test.Y || test.y;
 
     const B = Math.max(2, Math.round(config.batchSize ?? 25));
@@ -130,7 +140,7 @@ export function runFederatedAttack(
       const alignNow = align(u, v);
       const [pVal, pTrig] = planeCoords(u, gscale(v, sigma));
       const drift = paramDistance(m, start);
-      const ve = statsEval(val, valid.y);
+      const ve = m.bn ? evaluate(m, valid.X, valid.y) : statsEval(val, valid.y);
       onProgress({
         iteration: frame++,
         poisonX: [], poisonY: [],
@@ -164,17 +174,30 @@ export function runFederatedAttack(
     let t = 0;
     let stopped = false;
 
+    /** A server step on the batch the model forwards (train mode), clipped: the forward also moves BN's running statistics. */
+    const serverStep = (l: Learner, X: number[][], y: number[], scale = 1): Learner => {
+      const s = batchStats(l.net, X, y);
+      return optimStep({ net: updateRunningStats(l.net, s), v: l.v }, clip(scale === 1 ? s.grad : gscale(s.grad, scale)).g, opt);
+    };
+
     const round = () => {
       const batch = stream[t];
-      const honest = w ? lossGradient(L.net, batch.X, batch.y) : null;
+      // Crafting forwards S_T then S_val in train mode (craft_federated_NEW): with BN they move the running statistics
+      if (L.net.bn) L = { net: updateRunningStats(updateRunningStats(L.net, trig), val), v: L.v };
+      let honest: Grad | null = null;
+      if (w) {
+        const sb = batchStats(L.net, batch.X, batch.y);
+        L = { net: updateRunningStats(L.net, sb), v: L.v };
+        honest = sb.grad;
+      }
       const { U, G } = federatedUpdate(val, trig, honest, lambda, sigma, w, normalized);
       const c = clip(U);
       const candidate = optimStep(L, c.g, opt);
-      R = optimStep(R, clip(lossGradient(R.net, batch.X, batch.y)).g, opt);
+      R = serverStep(R, batch.X, batch.y);
       lastUpdate = { norm: c.before, factor: c.factor, G: gnorm(G) };
       // The monitor would notice: submit the honest aggregate this round instead, and stop
       if (maxAccDrop < 1 && computeAccuracy(candidate.net, test.X, testY) < floor) {
-        L = optimStep(L, clip(lossGradient(L.net, batch.X, batch.y)).g, opt);
+        L = serverStep(L, batch.X, batch.y);
         stopped = true;
       } else {
         L = candidate;
@@ -187,22 +210,20 @@ export function runFederatedAttack(
 
     const fireTrigger = () => {
       const pre = evaluate(L.net, test.X, testY);
-      const preLoss = statsEval(val, valid.y).loss;
-      // The trigger batch's update: ∇L(S_T), or the reversed −s∇L(S_T) (Eq. 13)
-      const trigGrad = (m: Net) => {
-        const g = lossGradient(m, trigX, trigY);
-        return reversed ? gscale(g, -trigScale) : g;
-      };
-      const g = clip(trigGrad(L.net)).g;
+      const preLoss = L.net.bn ? evaluate(L.net, valid.X, valid.y).loss : statsEval(val, valid.y).loss;
+      // The trigger batch's update: ∇L(S_T), or the reversed −s∇L(S_T) (Eq. 13, adapt_tensor_reverse)
+      const tScale = reversed ? -trigScale : 1;
+      const sT = batchStats(L.net, trigX, trigY);
+      const g = clip(tScale === 1 ? sT.grad : gscale(sT.grad, tScale)).g;
       const dir = stepDirection(L, g, opt);
-      const after = optimStep(L, g, opt).net;
+      const after = optimStep({ net: updateRunningStats(L.net, sT), v: L.v }, g, opt).net;
       const post = evaluate(after, valid.X, valid.y);
       const state = getModelState(after, train.X, train.y, test.X, testY);
 
       // No accumulation: the same trigger on the honest trajectory, and Table 3's direct poisoner
       const refPre = computeAccuracy(R.net, test.X, testY);
-      const refAfter = optimStep(R, clip(trigGrad(R.net)).g, opt).net;
-      const direct = optimStep(R, clip(gscale(lossGradient(R.net, valid.X, valid.y), -directScale)).g, opt).net;
+      const refAfter = serverStep(R, trigX, trigY, tScale).net;
+      const direct = serverStep(R, valid.X, valid.y, -directScale).net;
 
       const u = val.grad;
       const [pVal, pTrig] = planeCoords(u, dir);

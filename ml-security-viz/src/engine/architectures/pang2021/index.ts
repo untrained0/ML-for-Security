@@ -265,7 +265,9 @@ const pang2021: AlgorithmModule = {
     const hidden = (config.victim ?? 'mlp') === 'mlp'
       ? Array.from({ length: Math.max(1, Math.round(config.hiddenLayers ?? 1)) }, () => Math.max(1, Math.round(config.hiddenUnits ?? 32)))
       : [];
-    const init = createNet([X[0].length, ...hidden, 1], (config.activation ?? 'relu') as Activation, norm);
+    // Ablation options (engine only, not in the UI): batch norm, and a softmax head for K-class data
+    const K = dataset.numClasses > 2 ? dataset.numClasses : 1;
+    const init = createNet([X[0].length, ...hidden, K], (config.activation ?? 'relu') as Activation, norm, (config.batchNorm ?? 'off') === 'on');
     // Burn-in optimiser as the reference train_cifar.py: SGD, momentum 0.9, weight decay 1e-4
     const opt = { lr: config.learningRate ?? 0.1, momentum: config.momentum ?? 0.9, weightDecay: 1e-4 };
     const model = burnIn(X, y, init, opt, config.burnInEpochs ?? 5, config.batchSize ?? 25);
