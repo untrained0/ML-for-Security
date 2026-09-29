@@ -3,7 +3,7 @@
  * complete datasets on the server (src/server/datasets.ts).
  */
 
-import { pca } from './pca';
+import { fitView } from '../view';
 
 export interface ImageSplitSample { pixels: Uint8Array[]; labels: number[] }
 export interface ImageSample {
@@ -43,48 +43,31 @@ export async function fetchImageSample(
 }
 
 /**
- * A two-class image task on 2-D PCA features, the representation Pang 2021's online logistic
- * regression works in here. `classes[0]` is labelled +1. PCA is fitted on the training split and
- * its projection min–max scaled to [−2, 2]; `pcaState` folds that scaling in, so
- * mean + Σ zᵢ·componentsᵢ maps a canvas point straight back to pixel space in [0,1].
+ * A two-class image task in pixel space, for Pang 2021's online victim. `X` is the raw image in
+ * [0,1] (channels last), `classes[0]` is labelled +1; the training split is the stream the victim
+ * learns from (burn-in, then the accumulative batches), `valid` is the attacker's S_val and `test`
+ * is what the accuracy monitor watches. `view` is a 2-D PCA of (a sample of) the training images,
+ * for drawing only — the model and the perturbations use every pixel.
  */
-export async function loadImagePair2D(source: 'mnist' | 'cifar10', classes: [number, number], n: number) {
-  const nTrain = Math.round(0.6 * n), nValid = Math.round(0.2 * n), nTest = Math.max(1, n - nTrain - nValid);
-  const s = await fetchImageSample(source, classes, nTrain, nValid, nTest);
-  const feats = (p: Uint8Array) => Array.from(p, v => v / 255);
-
-  const trainF = s.train.pixels.map(feats);
-  const { components, mean } = pca(trainF, 2);
-  const proj = (x: number[]) => components.map(c => {
-    let v = 0;
-    for (let j = 0; j < x.length; j++) v += c[j] * (x[j] - mean[j]);
-    return v;
+export async function loadImagePair(
+  source: 'mnist' | 'cifar10', classes: [number, number],
+  sizes: { train: number; valid: number; test: number | 'all' },
+) {
+  const s = await fetchImageSample(source, classes, sizes.train, sizes.valid, sizes.test);
+  const part = (split: ImageSplitSample) => ({
+    X: split.pixels.map(p => Array.from(p, v => v / 255)),
+    y: split.labels.map(l => (l === s.classes[0] ? 1 : -1)),
+    labels: split.labels.map(l => s.classNames[s.classes.indexOf(l)]),
   });
-  const trainP = trainF.map(proj);
-  const lo = [0, 1].map(k => Math.min(...trainP.map(p => p[k])));
-  const hi = [0, 1].map(k => Math.max(...trainP.map(p => p[k])));
-  const scale = [0, 1].map(k => (hi[k] - lo[k] || 1) / 4);          // projection per canvas unit
-  const toCanvas = (p: number[]) => p.map((v, k) => (v - lo[k]) / scale[k] - 2);
-
-  const part = (split: ImageSplitSample, feat?: number[][]) => {
-    const X = (feat ?? split.pixels.map(feats)).map(x => toCanvas(proj(x)));
-    return {
-      X, X2D: X,
-      y: split.labels.map(l => (l === s.classes[0] ? 1 : -1)),
-      images: split.pixels.map(p => Array.from(p)),
-      labels: split.labels.map(l => s.classNames[s.classes.indexOf(l)]),
-    };
-  };
-
-  // Canvas z → projection p = (z + 2)·scale + lo → pixels mean + Σ p_k c_k
-  const foldedMean = mean.map((m, j) => m + components.reduce((acc, c, k) => acc + (2 * scale[k] + lo[k]) * c[j], 0));
-  const foldedComponents = components.map((c, k) => c.map(v => v * scale[k]));
-
+  const train = part(s.train);
   return {
-    train: part(s.train, trainF),
+    train,
     valid: part(s.valid),
     test: part(s.test),
+    // The view is display-only; 400 images pin down two principal directions well enough
+    view: fitView(train.X.slice(0, 400), 2, -2, 2),
+    bounds: [0, 1] as [number, number],
+    imageShape: s.shape,
     classNames: { '1': s.classNames[0], '-1': s.classNames[1] },
-    pcaState: { mean: foldedMean, components: foldedComponents },
   };
 }

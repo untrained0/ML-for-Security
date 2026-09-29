@@ -1,15 +1,15 @@
 'use client';
 import React, { useRef, useEffect } from 'react';
 import useStore from '@/store/useStore';
-import { pcaInverseTransform } from '@/engine/data/loaders/pca';
-import { drawMNISTImage } from '@/engine/data/loaders/mnist';
+import { drawImage, imageSide } from '@/engine/data/loaders/drawImage';
 import { lift } from '@/engine/data/view';
 
 export default function InverseImagePanel() {
-  const { dataset, datasetKey, hoveredCanvasPoint } = useStore();
-  // Real MNIST: the canvas is a PCA plane of 784-d pixel space; lift the hovered point back.
-  const pixelSpace = !!dataset?.imageShape && !!dataset?.view;
-  const active = pixelSpace || (datasetKey === 'mnist' && !!dataset?.pcaState);
+  const { dataset, hoveredCanvasPoint } = useStore();
+  // Real MNIST / CIFAR-10: the canvas is a PCA plane of pixel space; lift the hovered point back.
+  const active = !!dataset?.imageShape && !!dataset?.view;
+  const shape: number[] | undefined = dataset?.imageShape;
+  const side = imageSide(shape);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -18,18 +18,14 @@ export default function InverseImagePanel() {
 
     if (!active || !hoveredCanvasPoint) {
       // Clear canvas if nothing hovered
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, 84, 84);
+      ctx.clearRect(0, 0, side, side);
       return;
     }
 
-    // Inverse PCA back to 784 pixel intensities in [0,1]
-    const approx = pixelSpace
-      ? lift(dataset.view, hoveredCanvasPoint)
-      : pcaInverseTransform([hoveredCanvasPoint], dataset.pcaState.mean, dataset.pcaState.components)[0];
-
-    drawMNISTImage(ctx, approx.map((v: number) => Math.min(1, Math.max(0, v)) * 255), 0, 0, 3); // 84x84
-  }, [hoveredCanvasPoint, dataset, pixelSpace, active]);
+    // Inverse PCA back to pixel intensities in [0,1]
+    const approx = lift(dataset.view, hoveredCanvasPoint);
+    drawImage(ctx, approx.map((v: number) => Math.min(1, Math.max(0, v)) * 255), shape, 3);
+  }, [hoveredCanvasPoint, dataset, active, shape, side]);
 
   if (!active) return null;
 
@@ -41,7 +37,7 @@ export default function InverseImagePanel() {
       
       <div className="flex p-3 gap-3 items-start">
         <div className="p-3 flex justify-center bg-background border-r border-border-subtle" style={{ borderRight: 'none', paddingRight: 0 }}>
-          <canvas ref={canvasRef} width={84} height={84} className="bg-[var(--data-image-bg)] rounded-sm shadow-md [image-rendering:pixelated]" />
+          <canvas ref={canvasRef} width={side} height={side} className="bg-[var(--data-image-bg)] rounded-sm shadow-md [image-rendering:pixelated]" />
         </div>
         <div className="flex flex-col gap-4 flex-1">
           <div className="flex flex-col gap-[2px]">
@@ -56,7 +52,7 @@ export default function InverseImagePanel() {
           </div>
           <div className="flex flex-col gap-[2px]" style={{ marginTop: 'auto' }}>
             <span className="text-[11px] text-muted-foreground/70 uppercase tracking-[0.05em]">Operation</span>
-            <span className="text-[11px] text-muted-foreground font-normal">Inverse PCA (2D → 784D)</span>
+            <span className="text-[11px] text-muted-foreground font-normal">Inverse PCA (2D → {dataset.train.X[0].length}D)</span>
           </div>
         </div>
       </div>

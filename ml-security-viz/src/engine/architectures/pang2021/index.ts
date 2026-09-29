@@ -1,16 +1,20 @@
 /**
  * Pang et al. 2021 — "Accumulative Poisoning Attacks on Real-time Data"
- * (NeurIPS 2021, arXiv:2106.09993)
+ * (NeurIPS 2021, arXiv:2106.09993; reference code github.com/ShawnXYang/AccumulativeAttack)
  *
- * Online learning setting only (no federated learning).
- * Uses logistic regression with mini-batch SGD for 2D visualization.
- * Registration module — model in model.ts, attack in attack.ts, explainer in explainer.ts.
+ * Online-learning setting (§3.2, Algorithm 1) on real MNIST / CIFAR-10 in pixel space: the
+ * victim is a neural network (an MLP with one to three hidden layers) or logistic regression over
+ * the raw pixels (model.ts), the perturbations are L∞-bounded in [0,1] pixel units exactly as in
+ * the paper, and all gradients — including the second-order accumulation term G_t — are exact
+ * (backprop and the R-operator; gradient.ts). The federated setting is not modelled.
  */
 
 import { AlgorithmModule, registerAlgorithm } from '../registry';
-import { trainFull, getModelState, computeAccuracy, predictProb } from './model';
+import { burnIn, createNet, fitNorm, getModelState, logit, predictProb, type Activation, type PackedNet, packNet } from './model';
 import { runAccumulativeAttack } from './attack';
 import { pang2021ExplainerSteps } from './explainer';
+import { pangPointDetails } from './inspector';
+import { pangMathPanel } from './panel';
 
 const pang2021: AlgorithmModule = {
   key: 'pang2021',
@@ -18,100 +22,176 @@ const pang2021: AlgorithmModule = {
   paper: 'https://arxiv.org/abs/2106.09993',
   paperShort: 'Pang et al. 2021',
   modelType: 'classification',
+  modelLabel: (config) => (config.victim ?? 'mlp') === 'mlp' ? 'Online Neural Network' : 'Online Logistic Regression',
 
-  datasets: ['gaussian', 'moons', 'circles', 'mnist', 'cifar'],
+  datasets: ['pangMnist35', 'pangMnist71', 'pangCifarShipFrog', 'pangCifarPlaneBird'],
 
   configSchema: [
-    // Model section
+    // Model: the online victim and its burn-in (§4)
+    {
+      key: 'victim', label: 'Victim Model', type: 'select', section: 'model',
+      options: [
+        { value: 'mlp', label: 'Neural network (MLP)' },
+        { value: 'logreg', label: 'Logistic regression' },
+      ],
+      tooltip: 'The online learner under attack. The paper attacks a neural network (ResNet-18); here a fully connected MLP on the raw pixels, trained with the same online SGD. Logistic regression is the linear baseline: far less room to steer, so far smaller drops',
+    },
+    {
+      key: 'hiddenUnits', label: 'Hidden Units', type: 'range', section: 'model',
+      min: 16, max: 256, step: 16, showIf: { key: 'victim', equals: 'mlp' },
+      tooltip: 'Width of each hidden layer. Cost grows linearly with it (a CIFAR-10 image has 3072 inputs)',
+    },
+    {
+      key: 'hiddenLayers', label: 'Hidden Layers', type: 'range', section: 'model',
+      min: 1, max: 3, step: 1, showIf: { key: 'victim', equals: 'mlp' },
+      tooltip: 'Depth of the MLP',
+    },
+    {
+      key: 'activation', label: 'Activation', type: 'select', section: 'model', showIf: { key: 'victim', equals: 'mlp' },
+      options: [
+        { value: 'relu', label: 'ReLU (as in ResNet)' },
+        { value: 'tanh', label: 'tanh (smooth)' },
+      ],
+      tooltip: 'Hidden-unit non-linearity. ReLU matches the paper\'s ResNet; tanh is twice differentiable everywhere, so its curvature also enters the Hessian-vector products of G_t',
+    },
     {
       key: 'learningRate', label: 'Learning Rate (β)', type: 'range', section: 'model',
-      min: 0.01, max: 2, step: 0.01,
-      tooltip: 'SGD learning rate for online model updates (θ_{t+1} = θ_t − β ∇L)'
+      min: 0.01, max: 20, step: 0.01,
+      tooltip: 'Online SGD rate β (Eq. 3). Inputs (and hidden units) are scaled by 1/√fan-in, so β means the same for both victims. With momentum μ the long-run step is β/(1 − μ). A faster learner reacts more to a single batch: set it high and the poisoned trigger alone does most of the damage, leaving little for accumulation to add',
     },
-    // Attack section
+    {
+      key: 'momentum', label: 'Momentum (μ)', type: 'range', section: 'model',
+      min: 0, max: 0.95, step: 0.05,
+      tooltip: 'SGD momentum of the victim, v ← μv + ∇L, θ ← θ − βv (the paper and reference code: 0.9, with weight decay 1e-4 during burn-in). The online optimiser starts fresh at θ_0 and its buffer is carried into the trigger step. 0 = plain SGD, Eq. 3',
+    },
+    {
+      key: 'batchSize', label: 'Batch Size', type: 'range', section: 'model',
+      min: 10, max: 100, step: 5,
+      tooltip: 'Images per online batch S_t, for burn-in, accumulation and the trigger alike (the paper uses 100)',
+    },
     {
       key: 'burnInEpochs', label: 'Burn-in Epochs', type: 'range', section: 'model',
-      min: 2, max: 100, step: 1,
-      tooltip: 'How far the victim is trained before the attack begins. The paper attacks a model that is still learning online — a fully converged model has near-zero gradients and nothing to exploit, so pushing this to the maximum defuses the attack'
+      min: 1, max: 40, step: 1,
+      tooltip: 'Clean SGD epochs before the attacker arrives, giving θ_0 (§4: 10 on MNIST, 40 on CIFAR-10)',
+    },
+    // Attack: Algorithm 1
+    {
+      key: 'numAccumBatches', label: 'Accumulative Rounds (T)', type: 'range', section: 'attack',
+      min: 1, max: 100, step: 1,
+      tooltip: 'Online batches the attacker perturbs before releasing the trigger at round T',
     },
     {
-      key: 'epsilon', label: 'Perturbation Budget (ε)', type: 'range', section: 'attack',
-      min: 0.05, max: 1.0, step: 0.05,
-      tooltip: 'L∞ bound on perturbation: ‖δ‖∞ ≤ ε'
+      key: 'epsilon255', label: 'Perturbation Budget (ε × 255)', type: 'range', section: 'attack',
+      min: 1, max: 32, step: 1,
+      tooltip: 'L∞ bound on every pixel change, ‖δ‖∞ ≤ ε, in 8-bit grey levels (the paper uses 8/255 and 16/255). Pixels also stay in [0,1]',
     },
     {
-      key: 'numAccumBatches', label: 'Accumulative Batches', type: 'range', section: 'attack',
-      min: 2, max: 40, step: 1,
-      tooltip: 'Number of batches in the accumulative phase before the trigger'
+      key: 'pgdSteps', label: 'PGD Steps (C)', type: 'range', section: 'attack',
+      min: 1, max: 100, step: 1,
+      tooltip: 'Signed-gradient steps per crafted batch, step size α = 2ε/C (§4; the paper uses C = 100). Cost per round grows linearly with C',
     },
     {
-      key: 'lambda', label: 'Accumulation Strength (λ)', type: 'range', section: 'attack',
-      min: 0, max: 5, step: 0.1,
-      tooltip: 'Mixing weight in d_t = ĝ(S_t) + λĜ_t. Both terms are unit vectors, so λ≈1 means "half honest learning, half accumulation". Set λ=0 for the control: the trigger fires with nothing accumulated behind it'
+      key: 'lambda', label: 'Accumulation Weight (λ)', type: 'range', section: 'attack',
+      min: 0, max: 10, step: 0.5,
+      tooltip: 'Eq. 9 trade-off: A_t(S_t) is aligned with ĝ(S_t) + λĜ_t — keep learning vs. accumulate. λ = 0 drops the G_t term (the control), though with weight momentum on the momentum buffer still accumulates the perturbed updates',
     },
     {
-      key: 'gamma', label: 'Stealth Budget (γ)', type: 'range', section: 'attack',
-      min: 0.01, max: 1.0, step: 0.01,
-      tooltip: 'Eq. 7 constraint: validation loss may exceed the clean trajectory by at most γ. Exceeding it early-stops accumulation'
+      key: 'normalizeGrads', label: 'Gradient Normalisation', type: 'select', section: 'attack',
+      options: [
+        { value: 'no', label: 'Off — raw inner product (Eq. 7)' },
+        { value: 'yes', label: 'On — cosine (reference code)' },
+      ],
+      tooltip: 'Algorithm 1 optionally normalises ∇L(S_val), ∇L(S_T) and ∇L(S_t) "to concentrate on angular distances". Off keeps Eq. 7\'s inner product, which also rewards a larger trigger gradient — clearly stronger here, on both victims',
     },
     {
-      key: 'secrecyThreshold', label: 'Accuracy Floor (τ)', type: 'range', section: 'attack',
-      min: 0.5, max: 0.95, step: 0.05,
-      tooltip: 'Hard early-stop: if validation accuracy falls below τ the accumulation is abandoned'
+      key: 'weightMomentum', label: 'Weight Momentum', type: 'select', section: 'attack',
+      options: [
+        { value: 'no', label: 'Off — victim keeps μ' },
+        { value: 'yes', label: 'On — μ = 1.1 while accumulating' },
+      ],
+      tooltip: '§4.1 / Table 1 trick: "lightly increases the momentum factor as 1.1 (from 0.9 by default) of the SGD optimizer in accumulative phase", so the poisoned updates pile up in the momentum buffer the trigger step inherits. Note it assumes the attacker can also set the victim optimiser\'s momentum',
     },
     {
-      key: 'pgdSteps', label: 'PGD Steps', type: 'range', section: 'attack',
-      min: 1, max: 20, step: 1,
-      tooltip: 'Number of PGD iterations for crafting each perturbation'
+      key: 'triggerType', label: 'Trigger Batch', type: 'select', section: 'attack',
+      options: [
+        { value: 'poisoned', label: 'Poisoned P(S_T) (Eq. 6)' },
+        { value: 'clean', label: 'Clean S_T' },
+      ],
+      tooltip: 'Table 1 uses a poisoned trigger; Table 6 shows the accumulative phase also primes the model for a clean one',
     },
     {
-      key: 'pgdStepSize', label: 'PGD Step Size (α)', type: 'range', section: 'attack',
+      key: 'optimizeTrigger', label: 'Optimise P During Accumulation', type: 'select', section: 'attack',
+      options: [
+        { value: 'yes', label: 'Yes — re-craft each round' },
+        { value: 'no', label: 'No — fixed at θ₀' },
+      ],
+      tooltip: '"Optimizing P" in Table 1: re-craft the poisoned trigger against every new θ_t instead of fixing it at the burn-in model',
+    },
+    {
+      key: 'gamma', label: 'Loss Tolerance (γ)', type: 'range', section: 'attack',
+      min: 0.01, max: 2, step: 0.01,
+      tooltip: 'Eq. 7 constraint: L(S_val; A(θ)) ≤ L(S_val; θ̃) + γ against the clean trajectory θ̃. A round that would break it is fed clean and accumulation stops',
+    },
+    {
+      key: 'maxAccDrop', label: 'Monitor Tolerance (Δacc)', type: 'range', section: 'attack',
       min: 0.01, max: 0.2, step: 0.01,
-      tooltip: 'Step size for each PGD iteration'
+      tooltip: '§4 early stop: accumulation halts before test accuracy falls more than this below the burn-in model (the paper stops at ~80% from ~83% on CIFAR-10)',
     },
   ],
 
-  // Tuned so the phenomenon is actually visible in 2-D. A logistic regression
-  // with three parameters gives the attacker far less room than the deep nets
-  // in the paper, so ε and λ have to be larger here than anything you would
-  // call "imperceptible" — see the caveat in explainer.ts.
+  // The paper's online setup (§4, reference online_accu_train.py): SGD momentum 0.9, a poisoned
+  // trigger re-crafted each round ("optimizing P") and the weight-momentum trick — Table 1's best
+  // row. β, B, T, C and the width are scaled to a small network and a trace the browser can hold;
+  // tuned on real MNIST 3-vs-5 / CIFAR-10 ship-vs-frog (runs in docs/memory.md).
   defaultConfig: {
-    learningRate: 1.5,
-    burnInEpochs: 20,
-    epsilon: 0.8,
-    numAccumBatches: 12,
-    lambda: 2,
-    gamma: 0.6,
-    secrecyThreshold: 0.6,
-    pgdSteps: 8,
-    pgdStepSize: 0.15,
+    victim: 'mlp',
+    hiddenUnits: 32,
+    hiddenLayers: 1,
+    activation: 'relu',
+    learningRate: 0.3,
+    momentum: 0.9,
+    batchSize: 25,
+    burnInEpochs: 5,
+    numAccumBatches: 40,
+    epsilon255: 16,
+    pgdSteps: 10,
+    lambda: 1,
+    weightMomentum: 'yes',
+    normalizeGrads: 'no',
+    triggerType: 'poisoned',
+    optimizeTrigger: 'yes',
+    gamma: 0.3,
+    maxAccDrop: 0.05,
   },
 
   trainClean(dataset, config) {
-    const lr = config.learningRate || 0.5;
-    // Burn-in, not convergence. The victim in the paper is mid-training when
-    // the attacker arrives; a converged 3-parameter model has vanishing
-    // gradients and a wide margin, which is exactly the regime where a single
-    // bounded update provably cannot change a prediction.
-    const model = trainFull(dataset.train.X, dataset.train.y, lr, config.burnInEpochs ?? 20);
+    const { X, y } = dataset.train;
+    const norm = fitNorm(X, dataset.imageShape?.[2] ?? 1);
+    const hidden = (config.victim ?? 'mlp') === 'mlp'
+      ? Array.from({ length: Math.max(1, Math.round(config.hiddenLayers ?? 1)) }, () => Math.max(1, Math.round(config.hiddenUnits ?? 32)))
+      : [];
+    const init = createNet([X[0].length, ...hidden, 1], (config.activation ?? 'relu') as Activation, norm);
+    // Burn-in optimiser as the reference train_cifar.py: SGD, momentum 0.9, weight decay 1e-4
+    const opt = { lr: config.learningRate ?? 0.1, momentum: config.momentum ?? 0.9, weightDecay: 1e-4 };
+    const model = burnIn(X, y, init, opt, config.burnInEpochs ?? 5, config.batchSize ?? 25);
     const testY = dataset.test.Y || dataset.test.y;
-    const state = getModelState(model, dataset.train.X, dataset.train.y, dataset.test.X, testY);
-    return { modelState: state, rawModel: model };
+    return { modelState: getModelState(model, X, y, dataset.test.X, testY), rawModel: packNet(model) };
   },
 
   runAttack: runAccumulativeAttack,
 
-  predict(rawModel, x) {
-    const p = predictProb(rawModel, x);
-    return p >= 0.5 ? 1 : -1;
+  predict(rawModel: PackedNet, x) {
+    return logit(rawModel, x) >= 0 ? 1 : -1;
   },
 
   // Smooth boundary for the canvas: P(y=+1|x) − 0.5 changes sign exactly where predict does
-  score(rawModel, x) {
+  score(rawModel: PackedNet, x) {
     return predictProb(rawModel, x) - 0.5;
   },
 
   explainerSteps: pang2021ExplainerSteps,
+  pointDetails: pangPointDetails,
+  mathPanel: pangMathPanel,
 };
 
 registerAlgorithm(pang2021);

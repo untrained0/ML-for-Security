@@ -1,6 +1,7 @@
 'use client';
 import useStore from '@/store/useStore';
 import { getAlgorithm } from '@/engine/architectures';
+import type { PointDetails, PointMetric } from '@/engine/architectures/registry';
 import MathEq from './MathEq';
 import { formatVector } from '@/engine/metrics';
 
@@ -11,7 +12,10 @@ export default function PointInspector() {
 
   if (!selectedPoint || !dataset || !dataset.train) return null;
 
-  const currentState = currentIteration > 0 ? attackTrace[currentIteration - 1] : null;
+  // The frame the canvas draws (page.tsx: attackTrace[currentIteration]) — a poison index points
+  // into its poisonX — and the frame before it
+  const currentState = attackTrace[currentIteration] ?? null;
+  const prevFrame = currentIteration > 0 ? attackTrace[currentIteration - 1] ?? null : null;
   const poisonedRawModel = currentState?.poisonedRawModel;
 
   const { type, index } = selectedPoint;
@@ -45,6 +49,19 @@ export default function PointInspector() {
   let poisonedPred = cleanPred;
   if (poisonedRawModel) {
     try { poisonedPred = alg.predict(poisonedRawModel, x); } catch {}
+  }
+
+  // A module may describe its own points; otherwise the SVM / regression view below
+  let details: PointDetails | null = null;
+  if (alg.pointDetails) {
+    try {
+      details = alg.pointDetails({
+        kind: isClean ? 'clean' : 'poison', index, x, y,
+        frame: currentState, prevFrame, cleanRawModel, dataset,
+      });
+    } catch (e) {
+      console.error('pointDetails:', e);
+    }
   }
 
   return (
@@ -92,90 +109,150 @@ export default function PointInspector() {
           )}
         </div>
 
-        {/* Math Comparison Table */}
-        <div className="mt-2 border border-border-subtle rounded-md overflow-hidden bg-background">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-secondary border-b border-border-subtle text-muted-foreground">
-              <tr>
-                <th className="px-2 py-1.5 font-medium">Metric</th>
-                {isClean && <th className="px-2 py-1.5 font-medium">Clean</th>}
-                <th className="px-2 py-1.5 font-medium">Poisoned</th>
-              </tr>
-            </thead>
-            {isRegression ? (
-              <tbody className="divide-y divide-[var(--border-subtle)]">
-                <tr>
-                  <td className="px-2 py-1.5 text-muted-foreground" title="Prediction y_pred">Pred <span className="font-mono">ŷ</span></td>
-                  {isClean && <td className="px-2 py-1.5 font-mono text-text-code">{cleanPred.toFixed(3)}</td>}
-                  <td className="px-2 py-1.5 font-mono text-text-code">{poisonedPred.toFixed(3)}</td>
-                </tr>
-                <tr>
-                  <td className="px-2 py-1.5 text-muted-foreground" title="Absolute Error |y - y_pred|">Abs Err</td>
-                  {isClean && <td className="px-2 py-1.5 font-mono text-text-code">{Math.abs(y - cleanPred).toFixed(3)}</td>}
-                  <td className="px-2 py-1.5 font-mono text-text-code">
-                    {Math.abs(y - poisonedPred).toFixed(3)}
-                    {isClean && Math.abs(Math.abs(y - poisonedPred) - Math.abs(y - cleanPred)) > 0.01 && (
-                      <span className={`ml-1 ${Math.abs(y - poisonedPred) > Math.abs(y - cleanPred) ? 'text-red-400' : 'text-green-400'}`}>
-                        {Math.abs(y - poisonedPred) > Math.abs(y - cleanPred) ? '↑' : '↓'}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              </tbody>
-            ) : (
-              <tbody className="divide-y divide-[var(--border-subtle)]">
-                <tr>
-                  <td className="px-2 py-1.5 text-muted-foreground" title="Decision Value f(x)">Margin <span className="font-mono">f(x)</span></td>
-                  {isClean && <td className="px-2 py-1.5 font-mono text-text-code">{cleanPred.toFixed(3)}</td>}
-                  <td className="px-2 py-1.5 font-mono text-text-code">{poisonedPred.toFixed(3)}</td>
-                </tr>
-                <tr>
-                  <td className="px-2 py-1.5 text-muted-foreground" title="Hinge Loss max(0, 1 - y*f(x))">Loss <span className="font-mono">ℒ</span></td>
-                  {isClean && <td className="px-2 py-1.5 font-mono text-text-code">{Math.max(0, 1 - y * cleanPred).toFixed(3)}</td>}
-                  <td className="px-2 py-1.5 font-mono text-text-code">
-                    {Math.max(0, 1 - y * poisonedPred).toFixed(3)}
-                    {isClean && Math.abs(Math.max(0, 1 - y * poisonedPred) - Math.max(0, 1 - y * cleanPred)) > 0.01 && (
-                      <span className={`ml-1 ${Math.max(0, 1 - y * poisonedPred) > Math.max(0, 1 - y * cleanPred) ? 'text-red-400' : 'text-green-400'}`}>
-                        {Math.max(0, 1 - y * poisonedPred) > Math.max(0, 1 - y * cleanPred) ? '↑' : '↓'}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="px-2 py-1.5 text-muted-foreground" title="Support Vector Weight α">Weight <span className="font-mono">α</span></td>
-                  {isClean && (
-                    <td className={`px-2 py-1.5 font-mono ${(cleanRawModel?.alpha?.[index] || 0) > 1e-3 ? 'text-data-support font-bold' : 'text-muted-foreground/70'}`}>
-                      {(cleanRawModel?.alpha?.[index] || 0).toFixed(3)}
-                    </td>
-                  )}
-                  <td className={`px-2 py-1.5 font-mono ${(poisonedRawModel?.alpha?.[isClean ? index : dataset.train.X.length + index] || 0) > 1e-3 ? 'text-data-support font-bold' : 'text-muted-foreground/70'}`}>
-                    {(poisonedRawModel?.alpha?.[isClean ? index : dataset.train.X.length + index] || 0).toFixed(3)}
-                  </td>
-                </tr>
-              </tbody>
-            )}
-          </table>
-        </div>
+        {details ? <ModuleDetails details={details} /> : (
+          <>
+            {/* Math Comparison Table */}
+            <div className="mt-2 border border-border-subtle rounded-md overflow-hidden bg-background">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-secondary border-b border-border-subtle text-muted-foreground">
+                  <tr>
+                    <th className="px-2 py-1.5 font-medium">Metric</th>
+                    {isClean && <th className="px-2 py-1.5 font-medium">Clean</th>}
+                    <th className="px-2 py-1.5 font-medium">Poisoned</th>
+                  </tr>
+                </thead>
+                {isRegression ? (
+                  <tbody className="divide-y divide-[var(--border-subtle)]">
+                    <tr>
+                      <td className="px-2 py-1.5 text-muted-foreground" title="Prediction y_pred">Pred <span className="font-mono">ŷ</span></td>
+                      {isClean && <td className="px-2 py-1.5 font-mono text-text-code">{cleanPred.toFixed(3)}</td>}
+                      <td className="px-2 py-1.5 font-mono text-text-code">{poisonedPred.toFixed(3)}</td>
+                    </tr>
+                    <tr>
+                      <td className="px-2 py-1.5 text-muted-foreground" title="Absolute Error |y - y_pred|">Abs Err</td>
+                      {isClean && <td className="px-2 py-1.5 font-mono text-text-code">{Math.abs(y - cleanPred).toFixed(3)}</td>}
+                      <td className="px-2 py-1.5 font-mono text-text-code">
+                        {Math.abs(y - poisonedPred).toFixed(3)}
+                        {isClean && Math.abs(Math.abs(y - poisonedPred) - Math.abs(y - cleanPred)) > 0.01 && (
+                          <span className={`ml-1 ${Math.abs(y - poisonedPred) > Math.abs(y - cleanPred) ? 'text-red-400' : 'text-green-400'}`}>
+                            {Math.abs(y - poisonedPred) > Math.abs(y - cleanPred) ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                ) : (
+                  <tbody className="divide-y divide-[var(--border-subtle)]">
+                    <tr>
+                      <td className="px-2 py-1.5 text-muted-foreground" title="Decision Value f(x)">Margin <span className="font-mono">f(x)</span></td>
+                      {isClean && <td className="px-2 py-1.5 font-mono text-text-code">{cleanPred.toFixed(3)}</td>}
+                      <td className="px-2 py-1.5 font-mono text-text-code">{poisonedPred.toFixed(3)}</td>
+                    </tr>
+                    <tr>
+                      <td className="px-2 py-1.5 text-muted-foreground" title="Hinge Loss max(0, 1 - y*f(x))">Loss <span className="font-mono">ℒ</span></td>
+                      {isClean && <td className="px-2 py-1.5 font-mono text-text-code">{Math.max(0, 1 - y * cleanPred).toFixed(3)}</td>}
+                      <td className="px-2 py-1.5 font-mono text-text-code">
+                        {Math.max(0, 1 - y * poisonedPred).toFixed(3)}
+                        {isClean && Math.abs(Math.max(0, 1 - y * poisonedPred) - Math.max(0, 1 - y * cleanPred)) > 0.01 && (
+                          <span className={`ml-1 ${Math.max(0, 1 - y * poisonedPred) > Math.max(0, 1 - y * cleanPred) ? 'text-red-400' : 'text-green-400'}`}>
+                            {Math.max(0, 1 - y * poisonedPred) > Math.max(0, 1 - y * cleanPred) ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-2 py-1.5 text-muted-foreground" title="Support Vector Weight α">Weight <span className="font-mono">α</span></td>
+                      {isClean && (
+                        <td className={`px-2 py-1.5 font-mono ${(cleanRawModel?.alpha?.[index] || 0) > 1e-3 ? 'text-data-support font-bold' : 'text-muted-foreground/70'}`}>
+                          {(cleanRawModel?.alpha?.[index] || 0).toFixed(3)}
+                        </td>
+                      )}
+                      <td className={`px-2 py-1.5 font-mono ${(poisonedRawModel?.alpha?.[isClean ? index : dataset.train.X.length + index] || 0) > 1e-3 ? 'text-data-support font-bold' : 'text-muted-foreground/70'}`}>
+                        {(poisonedRawModel?.alpha?.[isClean ? index : dataset.train.X.length + index] || 0).toFixed(3)}
+                      </td>
+                    </tr>
+                  </tbody>
+                )}
+              </table>
+            </div>
 
-        {/* Poison specific metrics */}
-        {!isClean && (
-          <div className="mt-1 flex flex-col gap-2 p-2.5 bg-secondary rounded border border-border-subtle">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Dist. from Origin</span>
-              <span className="font-mono text-xs text-text-code">
-                {Math.sqrt(Math.pow(x[0] - initialX[0], 2) + (x.length > 1 ? Math.pow(x[1] - initialX[1], 2) : 0)).toFixed(3)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Gradient Mag. <span className="font-mono">‖∇L‖</span></span>
-              <span className="font-mono text-xs text-text-code">
-                {gradNorm.toFixed(5)}
-              </span>
-            </div>
-          </div>
+            {/* Poison specific metrics */}
+            {!isClean && (
+              <div className="mt-1 flex flex-col gap-2 p-2.5 bg-secondary rounded border border-border-subtle">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Dist. from Origin</span>
+                  <span className="font-mono text-xs text-text-code">
+                    {Math.sqrt(Math.pow(x[0] - initialX[0], 2) + (x.length > 1 ? Math.pow(x[1] - initialX[1], 2) : 0)).toFixed(3)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Gradient Mag. <span className="font-mono">‖∇L‖</span></span>
+                  <span className="font-mono text-xs text-text-code">
+                    {gradNorm.toFixed(5)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
   );
 }
 
+const fmt = (v: number | undefined, digits = 3) =>
+  v === undefined || !Number.isFinite(v) ? '—' : v.toFixed(digits);
+
+/** ↑/↓ from the clean to the poisoned column, red when it moved the worse way. */
+function Trend({ row }: { row: PointMetric }) {
+  if (row.clean === undefined || !row.worse) return null;
+  const d = row.poisoned - row.clean;
+  if (Math.abs(d) < 1e-3) return null;
+  const worse = row.worse === 'higher' ? d > 0 : d < 0;
+  return <span className={`ml-1 ${worse ? 'text-attack' : 'text-clean'}`}>{d > 0 ? '↑' : '↓'}</span>;
+}
+
+/** The table and readouts a module supplies through `pointDetails`. */
+function ModuleDetails({ details }: { details: PointDetails }) {
+  const twoColumns = details.rows.some(r => r.clean !== undefined);
+  return (
+    <>
+      {details.rows.length > 0 && (
+        <div className="mt-2 border border-border-subtle rounded-md overflow-hidden bg-background">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-secondary border-b border-border-subtle text-muted-foreground">
+              <tr>
+                <th className="px-2 py-1.5 font-medium">Metric</th>
+                {twoColumns && <th className="px-2 py-1.5 font-medium">{details.columns[0]}</th>}
+                <th className="px-2 py-1.5 font-medium">{details.columns[1]}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border-subtle)]">
+              {details.rows.map(row => (
+                <tr key={row.label}>
+                  <td className="px-2 py-1.5 text-muted-foreground" title={row.tooltip}>{row.label}</td>
+                  {twoColumns && <td className="px-2 py-1.5 font-mono text-text-code">{fmt(row.clean, row.digits)}</td>}
+                  <td className="px-2 py-1.5 font-mono text-text-code">
+                    {fmt(row.poisoned, row.digits)}
+                    <Trend row={row} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {details.note && <p className="text-[11px] leading-snug text-muted-foreground">{details.note}</p>}
+      {details.extras && details.extras.length > 0 && (
+        <div className="mt-1 flex flex-col gap-2 p-2.5 bg-secondary rounded border border-border-subtle">
+          {details.extras.map(e => (
+            <div key={e.label} className="flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground" title={e.tooltip}>{e.label}</span>
+              <span className="font-mono text-xs text-text-code text-right">{e.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}

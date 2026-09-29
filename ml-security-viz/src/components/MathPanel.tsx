@@ -3,19 +3,57 @@ import { useMemo } from 'react';
 import { formatVector } from '@/engine/metrics';
 import useStore from '@/store/useStore';
 import { getAlgorithm } from '@/engine/architectures';
+import type { MathPanelLabels } from '@/engine/architectures/registry';
 import TestImagePanel from './TestImagePanel';
 import MathEq from './MathEq';
 import ComparisonTable from './ComparisonTable';
 import ExplainerIcon from './ExplainerIcon';
 
+/** Biggio 2012's SVM wording — the classification view for modules without `mathPanel`. */
+const SVM_LABELS: Required<MathPanelLabels> = {
+  weights: {
+    symbol: '\\mathbf{w}', tooltip: 'Weight vector determining the decision boundary orientation (Eq. 2)',
+    poisonedSymbol: '\\mathbf{w}_p', poisonedTooltip: 'Poisoned weight vector (Eq. 2)',
+  },
+  bias: {
+    symbol: 'b', tooltip: 'Bias term shifting the decision boundary (Eq. 2)',
+    poisonedSymbol: 'b_p', poisonedTooltip: 'Poisoned bias term (Eq. 2)',
+  },
+  weightNorm: {
+    symbol: '\\|\\mathbf{w}\\|', tooltip: 'L2 Norm of the weight vector. Represents the inverse of the margin size.',
+    poisonedSymbol: '\\|\\mathbf{w}_p\\|', poisonedTooltip: 'L2 Norm of the poisoned weight vector.',
+  },
+  loss: {
+    symbol: '\\mathcal{L}_{\\text{hinge}}', tooltip: 'Hinge loss over the dataset (Eq. 7). Attacker aims to maximize this on the validation set.',
+    poisonedTooltip: 'Poisoned hinge loss over the dataset (Eq. 7)',
+  },
+  showSupportVectors: true,
+  lowAccuracyHint: 'For RBF, use the auto γ or a smaller manual γ.',
+  objective: {
+    symbol: 'L(\\mathbf{x}_c)',
+    tooltip: 'Attacker objective (Eq. 1, Biggio 2012): mean validation hinge loss of the SVM trained on the poisoned data — on the part of D_val the gradient ascends.',
+    worse: 'higher',
+  },
+  gradientLabel: 'Avg ‖∇L‖',
+  equations: [
+    { title: 'Attacker Objective (Eq. 7)', body: 'max L(𝒟ᵥ, θ*(𝒟ₜ ∪ 𝒟ₚ))' },
+    { title: 'Gradient Ascent (Eq. 10)', body: '𝐱ₚ ← 𝐱ₚ + η · ∇ₓ L / ‖∇ₓ L‖' },
+  ],
+};
+
 /**
  * MathPanel — Right sidebar showing mathematical state of the model
- * Adapts to show classification (SVM) or regression metrics based on active algorithm.
+ * Adapts to show classification or regression metrics based on active algorithm; the
+ * classification wording comes from the module's `mathPanel` (default: the SVM of Biggio 2012).
  */
 export default function MathPanel({ currentState }: { currentState?: any }) {
-  const { cleanModel, attackTrace, currentIteration, activeAlgorithm } = useStore();
+  const { cleanModel, attackTrace, currentIteration, activeAlgorithm, algorithmConfig } = useStore();
   const alg = getAlgorithm(activeAlgorithm);
   const isRegression = alg.modelType === 'regression';
+  const labels = typeof alg.mathPanel === 'function'
+    ? alg.mathPanel({ ...alg.defaultConfig, ...algorithmConfig })
+    : alg.mathPanel;
+  const L = { ...SVM_LABELS, ...labels };
 
   const prevState = useMemo(() => {
     if (currentIteration > 0 && attackTrace.length > 0) {
@@ -149,7 +187,7 @@ export default function MathPanel({ currentState }: { currentState?: any }) {
     );
   }
 
-  // ── Classification Mode (existing SVM rendering) ──
+  // ── Classification Mode ──
 
   return (
     <aside className="glass-panel overflow-y-auto p-4 flex flex-col gap-4 flex-1 min-h-0">
@@ -163,7 +201,7 @@ export default function MathPanel({ currentState }: { currentState?: any }) {
           <div className="px-4 py-3 flex flex-col gap-0">
             <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
               <span className="text-xs text-muted-foreground">
-                <MathEq math="\mathbf{w}" tooltip="Weight vector determining the decision boundary orientation (Eq. 2)" />
+                <MathEq math={L.weights.symbol} tooltip={L.weights.tooltip} />
               </span>
               <span className="data-value transition-colors duration-300 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">
                 [{formatVector(cleanModel.w)}]
@@ -171,23 +209,25 @@ export default function MathPanel({ currentState }: { currentState?: any }) {
             </div>
             <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
               <span className="text-xs text-muted-foreground">
-                <MathEq math="b" tooltip="Bias term shifting the decision boundary (Eq. 2)" />
+                <MathEq math={L.bias.symbol} tooltip={L.bias.tooltip} />
               </span>
               <span className="data-value transition-colors duration-300 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">{cleanModel.b.toFixed(4)}</span>
             </div>
             <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
               <span className="text-xs text-muted-foreground">
-                <MathEq math="\|\mathbf{w}\|" tooltip="L2 Norm of the weight vector. Represents the inverse of the margin size." />
+                <MathEq math={L.weightNorm.symbol} tooltip={L.weightNorm.tooltip} />
               </span>
               <span className="data-value transition-colors duration-300 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">{cleanModel.wNorm.toFixed(4)}</span>
             </div>
-            <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
-              <span className="text-xs text-muted-foreground">Support Vectors</span>
-              <span className="data-value transition-colors duration-300 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">{cleanModel.numSupportVectors}</span>
-            </div>
+            {L.showSupportVectors && (
+              <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
+                <span className="text-xs text-muted-foreground">Support Vectors</span>
+                <span className="data-value transition-colors duration-300 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">{cleanModel.numSupportVectors}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
               <span className="text-xs text-muted-foreground">
-                <MathEq math="\mathcal{L}_{\text{hinge}}" tooltip="Hinge loss over the dataset (Eq. 7). Attacker aims to maximize this on the validation set." />
+                <MathEq math={L.loss.symbol} tooltip={L.loss.tooltip} />
               </span>
               <span className="data-value transition-colors duration-300 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">{cleanModel.hingeLoss.toFixed(4)}</span>
             </div>
@@ -209,7 +249,7 @@ export default function MathPanel({ currentState }: { currentState?: any }) {
               // A model at chance leaves nothing to poison: every attack will look like it "does nothing"
               <p className="mt-2 text-[11px] leading-snug text-warning bg-warning/10 rounded-sm px-2 py-1.5">
                 The clean model is near chance level, so there is nothing for the attack to degrade.
-                For RBF, use the auto γ or a smaller manual γ.
+                {' '}{L.lowAccuracyHint}
               </p>
             )}
           </div>
@@ -228,7 +268,7 @@ export default function MathPanel({ currentState }: { currentState?: any }) {
           <div className="px-4 py-3 flex flex-col gap-0">
             <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
               <span className="text-xs text-muted-foreground">
-                <MathEq math="\mathbf{w}_p" tooltip="Poisoned weight vector (Eq. 2)" />
+                <MathEq math={L.weights.poisonedSymbol ?? L.weights.symbol} tooltip={L.weights.poisonedTooltip ?? L.weights.tooltip} />
               </span>
               <span className="data-value transition-colors duration-300 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">
                 [{formatVector(currentState.poisonedModel.w)}]
@@ -236,7 +276,7 @@ export default function MathPanel({ currentState }: { currentState?: any }) {
             </div>
             <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
               <span className="text-xs text-muted-foreground">
-                <MathEq math="b_p" tooltip="Poisoned bias term (Eq. 2)" />
+                <MathEq math={L.bias.poisonedSymbol ?? L.bias.symbol} tooltip={L.bias.poisonedTooltip ?? L.bias.tooltip} />
               </span>
               <span className="data-value transition-colors duration-300 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">
                 {currentState.poisonedModel.b.toFixed(4)}
@@ -244,21 +284,23 @@ export default function MathPanel({ currentState }: { currentState?: any }) {
             </div>
             <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
               <span className="text-xs text-muted-foreground">
-                <MathEq math="\|\mathbf{w}_p\|" tooltip="L2 Norm of the poisoned weight vector." />
+                <MathEq math={L.weightNorm.poisonedSymbol ?? L.weightNorm.symbol} tooltip={L.weightNorm.poisonedTooltip ?? L.weightNorm.tooltip} />
               </span>
               <span className="data-value transition-colors duration-300 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">
                 {currentState.poisonedModel.wNorm.toFixed(4)}
               </span>
             </div>
-            <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
-              <span className="text-xs text-muted-foreground">Support Vectors</span>
-              <span className="data-value transition-colors duration-300 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">
-                {currentState.poisonedModel.numSupportVectors}
-              </span>
-            </div>
+            {L.showSupportVectors && (
+              <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
+                <span className="text-xs text-muted-foreground">Support Vectors</span>
+                <span className="data-value transition-colors duration-300 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">
+                  {currentState.poisonedModel.numSupportVectors}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
               <span className="text-xs text-muted-foreground">
-                <MathEq math="\mathcal{L}_{\text{hinge}}" tooltip="Poisoned hinge loss over the dataset (Eq. 7)" />
+                <MathEq math={L.loss.poisonedSymbol ?? L.loss.symbol} tooltip={L.loss.poisonedTooltip ?? L.loss.tooltip} />
               </span>
               <ValueWithDelta
                 value={currentState.poisonedModel.hingeLoss}
@@ -300,13 +342,13 @@ export default function MathPanel({ currentState }: { currentState?: any }) {
             </div>
             <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
               <span className="text-xs text-muted-foreground">
-                <MathEq math="L(\mathbf{x}_c)" tooltip="Attacker objective (Eq. 1, Biggio 2012): mean validation hinge loss of the SVM trained on the poisoned data — on the part of D_val the gradient ascends." />
+                <MathEq math={L.objective.symbol} tooltip={L.objective.tooltip} />
               </span>
               <ValueWithDelta
                 value={currentState.objectiveValue}
                 prevValue={prevState?.objectiveValue}
                 format={v => v.toFixed(5)}
-                higherIsBad
+                higherIsBad={(L.objective.worse ?? 'higher') === 'higher'}
               />
             </div>
             {currentState.heldOutObjective !== undefined && (
@@ -334,7 +376,7 @@ export default function MathPanel({ currentState }: { currentState?: any }) {
             </div>
             {currentState.gradientNorms && currentState.gradientNorms.length > 0 && (
               <div className="flex items-center justify-between py-[5px] border-b border-border-subtle last:border-b-0">
-                <span className="text-xs text-muted-foreground">Avg ‖∇L‖</span>
+                <span className="text-xs text-muted-foreground">{L.gradientLabel}</span>
                 <span className="data-value transition-colors duration-300 max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">
                   {(currentState.gradientNorms.reduce((a: number, b: number) => a + b, 0) / currentState.gradientNorms.length).toFixed(5)}
                 </span>
@@ -377,18 +419,12 @@ export default function MathPanel({ currentState }: { currentState?: any }) {
         <h3 className="eyebrow px-4 py-3 border-b border-border-subtle">
           📚 Reference Equations
         </h3>
-        <div className="px-4 py-3 border-b border-border-subtle last:border-b-0 bg-background">
-          <div className="text-[10px] text-muted-foreground/70 uppercase tracking-[0.04em] mb-1">Attacker Objective (Eq. 7)</div>
-          <p className="font-mono text-xs text-text-code">
-            max L(𝒟ᵥ, θ*(𝒟ₜ ∪ 𝒟ₚ))
-          </p>
-        </div>
-        <div className="px-4 py-3 border-b border-border-subtle last:border-b-0 bg-background">
-          <div className="text-[10px] text-muted-foreground/70 uppercase tracking-[0.04em] mb-1">Gradient Ascent (Eq. 10)</div>
-          <p className="font-mono text-xs text-text-code">
-            𝐱ₚ ← 𝐱ₚ + η · ∇ₓ L / ‖∇ₓ L‖
-          </p>
-        </div>
+        {L.equations.map(eq => (
+          <div key={eq.title} className="px-4 py-3 border-b border-border-subtle last:border-b-0 bg-background">
+            <div className="text-[10px] text-muted-foreground/70 uppercase tracking-[0.04em] mb-1">{eq.title}</div>
+            <p className="font-mono text-xs text-text-code">{eq.body}</p>
+          </div>
+        ))}
       </section>
     </aside>
   );

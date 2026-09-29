@@ -2,12 +2,11 @@
 import { useEffect, useRef } from 'react';
 import useStore from '@/store/useStore';
 import { getAlgorithm } from '@/engine/architectures';
-import { drawMNISTImage } from '@/engine/data/loaders/mnist';
-import { drawCIFARImage } from '@/engine/data/loaders/cifar';
+import { drawImage, imageSide, isRGB } from '@/engine/data/loaders/drawImage';
 
 export default function TestImagePanel() {
   const {
-    datasetKey, dataset,
+    dataset,
     cleanRawModel, poisonedRawModel, activeAlgorithm,
     selectedTestIndex, setSelectedTestIndex,
   } = useStore();
@@ -15,24 +14,18 @@ export default function TestImagePanel() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Real MNIST keeps pixels in [0,1] as the features themselves; the synthetic image datasets
-  // carry a separate 0–255 `images` array.
-  const isCifar = datasetKey === 'cifar';
-  const pixelSpace = !!dataset?.imageShape;
-  const hasImages = !!dataset?.test && (pixelSpace || ((datasetKey === 'mnist' || isCifar) && !!dataset.test.images));
-  const pixelsAt = (i: number) =>
-    pixelSpace ? dataset.test.X[i].map((v: number) => v * 255) : dataset.test.images[i];
+  // The real image datasets keep the pixels in [0,1] as the features themselves
+  const shape: number[] | undefined = dataset?.imageShape;
+  const hasImages = !!dataset?.test?.X?.length && !!shape;
+  const pixelsAt = (i: number) => dataset.test.X[i]?.map((v: number) => v * 255);
 
   // Re-draw the canvas when index changes
   useEffect(() => {
     if (!hasImages || !canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
     const imagePixels = pixelsAt(selectedTestIndex);
-    if (imagePixels && ctx) {
-      if (isCifar) drawCIFARImage(ctx, imagePixels, 0, 0, 3);   // 32x32 * 3
-      else drawMNISTImage(ctx, imagePixels, 0, 0, 3);           // 28x28 * 3 = 84x84
-    }
-  }, [selectedTestIndex, dataset, datasetKey, hasImages]);
+    if (imagePixels && ctx) drawImage(ctx, imagePixels, shape, 3);
+  }, [selectedTestIndex, dataset, hasImages]);
 
   if (!hasImages) return null;
 
@@ -68,13 +61,11 @@ export default function TestImagePanel() {
 
   const formatClass = (pred: number) => {
     if (dataset.classNames) return pred > 0 ? `${dataset.classNames['1']} (+1)` : `${dataset.classNames['-1']} (−1)`;
-    if (datasetKey === 'mnist') return pred > 0 ? '7 (+1)' : '1 (−1)';
-    if (isCifar) return pred > 0 ? 'Ship (+1)' : 'Frog (−1)';
     return pred > 0 ? '+1' : '-1';
   };
   const isCorrect = (pred: number) => (pred > 0 && trueY > 0) || (pred < 0 && trueY < 0);
 
-  const canvasSize = isCifar ? 96 : 84; // 32x3 vs 28x3
+  const canvasSize = imageSide(shape);
 
   return (
     <section className="bg-secondary rounded-md border border-border-subtle overflow-hidden flex flex-col shrink-0">
@@ -95,7 +86,7 @@ export default function TestImagePanel() {
         <div className="flex flex-col gap-4 flex-1">
           <div className="flex flex-col gap-[2px]">
             <span className="text-[11px] text-muted-foreground/70 uppercase tracking-[0.05em]">True Label:</span>
-            <span className="font-mono text-xs text-foreground font-medium">Digit {trueLabel} (y={trueY > 0 ? '+1' : '−1'})</span>
+            <span className="font-mono text-xs text-foreground font-medium">{isRGB(shape) ? trueLabel : `Digit ${trueLabel}`} (y={trueY > 0 ? '+1' : '−1'})</span>
           </div>
 
           <div className="flex flex-col gap-[2px]">
