@@ -1,0 +1,1320 @@
+/home/soham/Soham/pang_reference/AccumulativeAttack/feder_runner.py:93: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  ckpt = torch.load(os.path.join(args.resume, args.model_name))
+Namespace(dataroot='data/CIFAR-10/', shared=None, depth=18, group_norm=32, batch_size=100, test_batch_size=500, workers=0, log_name='log_accu_l0.05_clip1_seed2.txt', attack_method='pgd', print_freq=50, lr=0.1, accu_iter=1, online=False, shuffle=False, epsilon=0.2, dset_size=0, use_bn=True, only_second=False, only_normal=False, only_reg=False, test_tri=False, resume='checkpoints_base_bn', model_name='epoch40.pth', mode='train', onlinemode='train', outf='.', momentum=0.9, weight_decay=0, fe_tri_scale=1.0, fe_train_scale=1.0, feder_lambda=0.05, feder_lambda_clean=1.0, epochs=1000, num_steps=2, seed=2, use_initlr=False, threshold=1.202, restore_optimizer=False, clip_gradnorm=True, clipvalue=1.0, poisoned_trigger_step=1.0, main='federated')
+Resuming from checkpoints_base_bn...
+Epoch: 40 Error: 0.133
+Preparing data...
+Files already downloaded and verified
+Files already downloaded and verified
+ * Acc@1 0.867
+Test loss:  0.4575841724872589
+Initial test error: 0.1330
+tensor(0.0728, device='cuda:0')
+ * Acc@1 0.873
+Test loss:  0.43004703521728516
+Epoch:0 Test error: 0.1274
+tensor(0.0682, device='cuda:0')
+tensor(0.0607, device='cuda:0')
+tensor(0.0531, device='cuda:0')
+tensor(0.0473, device='cuda:0')
+tensor(0.0411, device='cuda:0')
+tensor(0.0349, device='cuda:0')
+tensor(0.0335, device='cuda:0')
+tensor(0.0324, device='cuda:0')
+tensor(0.0319, device='cuda:0')
+tensor(0.0329, device='cuda:0')
+ * Acc@1 0.882
+Test loss:  0.3895817697048187
+Epoch:10 Test error: 0.1184
+tensor(0.0324, device='cuda:0')
+tensor(0.0297, device='cuda:0')
+tensor(0.0302, device='cuda:0')
+tensor(0.0313, device='cuda:0')
+tensor(0.0347, device='cuda:0')
+tensor(0.0373, device='cuda:0')
+tensor(0.0404, device='cuda:0')
+tensor(0.0410, device='cuda:0')
+tensor(0.0386, device='cuda:0')
+tensor(0.0394, device='cuda:0')
+ * Acc@1 0.877
+Test loss:  0.40780746936798096
+Epoch:20 Test error: 0.1230
+tensor(0.0385, device='cuda:0')
+tensor(0.0414, device='cuda:0')
+tensor(0.0461, device='cuda:0')
+tensor(0.0464, device='cuda:0')
+tensor(0.0459, device='cuda:0')
+tensor(0.0457, device='cuda:0')
+tensor(0.0469, device='cuda:0')
+tensor(0.0471, device='cuda:0')
+tensor(0.0448, device='cuda:0')
+tensor(0.0454, device='cuda:0')
+ * Acc@1 0.873
+Test loss:  0.42812442779541016
+Epoch:30 Test error: 0.1268
+tensor(0.0437, device='cuda:0')
+tensor(0.0419, device='cuda:0')
+tensor(0.0429, device='cuda:0')
+tensor(0.0527, device='cuda:0')
+tensor(0.0570, device='cuda:0')
+tensor(0.0475, device='cuda:0')
+tensor(0.0407, device='cuda:0')
+tensor(0.0466, device='cuda:0')
+tensor(0.0452, device='cuda:0')
+tensor(0.0424, device='cuda:0')
+ * Acc@1 0.866
+Test loss:  0.4591536223888397
+Epoch:40 Test error: 0.1342
+tensor(0.0407, device='cuda:0')
+tensor(0.0489, device='cuda:0')
+tensor(0.0464, device='cuda:0')
+tensor(0.0374, device='cuda:0')
+tensor(0.0391, device='cuda:0')
+tensor(0.0478, device='cuda:0')
+tensor(0.0396, device='cuda:0')
+tensor(0.0373, device='cuda:0')
+tensor(0.0455, device='cuda:0')
+tensor(0.0371, device='cuda:0')
+ * Acc@1 0.861
+Test loss:  0.47897979617118835
+Epoch:50 Test error: 0.1394
+tensor(0.0352, device='cuda:0')
+tensor(0.0451, device='cuda:0')
+tensor(0.0404, device='cuda:0')
+tensor(0.0399, device='cuda:0')
+tensor(0.0505, device='cuda:0')
+tensor(0.0337, device='cuda:0')
+tensor(0.0399, device='cuda:0')
+tensor(0.0381, device='cuda:0')
+tensor(0.0327, device='cuda:0')
+tensor(0.0343, device='cuda:0')
+ * Acc@1 0.855
+Test loss:  0.5023947954177856
+Epoch:60 Test error: 0.1448
+tensor(0.0291, device='cuda:0')
+tensor(0.0281, device='cuda:0')
+tensor(0.0299, device='cuda:0')
+tensor(0.0291, device='cuda:0')
+tensor(0.0251, device='cuda:0')
+tensor(0.0302, device='cuda:0')
+tensor(0.0243, device='cuda:0')
+tensor(0.0259, device='cuda:0')
+tensor(0.0233, device='cuda:0')
+tensor(0.0214, device='cuda:0')
+ * Acc@1 0.855
+Test loss:  0.5221136808395386
+Epoch:70 Test error: 0.1449
+tensor(0.0224, device='cuda:0')
+tensor(0.0232, device='cuda:0')
+tensor(0.0186, device='cuda:0')
+tensor(0.0230, device='cuda:0')
+tensor(0.0193, device='cuda:0')
+tensor(0.0179, device='cuda:0')
+tensor(0.0198, device='cuda:0')
+tensor(0.0160, device='cuda:0')
+tensor(0.0167, device='cuda:0')
+tensor(0.0177, device='cuda:0')
+ * Acc@1 0.851
+Test loss:  0.5343734622001648
+Epoch:80 Test error: 0.1491
+tensor(0.0151, device='cuda:0')
+tensor(0.0179, device='cuda:0')
+tensor(0.0152, device='cuda:0')
+tensor(0.0161, device='cuda:0')
+tensor(0.0170, device='cuda:0')
+tensor(0.0137, device='cuda:0')
+tensor(0.0162, device='cuda:0')
+tensor(0.0135, device='cuda:0')
+tensor(0.0132, device='cuda:0')
+tensor(0.0155, device='cuda:0')
+ * Acc@1 0.850
+Test loss:  0.5452597737312317
+Epoch:90 Test error: 0.1505
+tensor(0.0116, device='cuda:0')
+tensor(0.0130, device='cuda:0')
+tensor(0.0129, device='cuda:0')
+tensor(0.0115, device='cuda:0')
+tensor(0.0125, device='cuda:0')
+tensor(0.0109, device='cuda:0')
+tensor(0.0118, device='cuda:0')
+tensor(0.0109, device='cuda:0')
+tensor(0.0111, device='cuda:0')
+tensor(0.0116, device='cuda:0')
+ * Acc@1 0.848
+Test loss:  0.5552534461021423
+Epoch:100 Test error: 0.1525
+tensor(0.0102, device='cuda:0')
+tensor(0.0105, device='cuda:0')
+tensor(0.0095, device='cuda:0')
+tensor(0.0101, device='cuda:0')
+tensor(0.0104, device='cuda:0')
+tensor(0.0093, device='cuda:0')
+tensor(0.0096, device='cuda:0')
+tensor(0.0095, device='cuda:0')
+tensor(0.0091, device='cuda:0')
+tensor(0.0089, device='cuda:0')
+ * Acc@1 0.847
+Test loss:  0.5624809861183167
+Epoch:110 Test error: 0.1532
+tensor(0.0086, device='cuda:0')
+tensor(0.0091, device='cuda:0')
+tensor(0.0088, device='cuda:0')
+tensor(0.0085, device='cuda:0')
+tensor(0.0085, device='cuda:0')
+tensor(0.0087, device='cuda:0')
+tensor(0.0087, device='cuda:0')
+tensor(0.0080, device='cuda:0')
+tensor(0.0091, device='cuda:0')
+tensor(0.0077, device='cuda:0')
+ * Acc@1 0.846
+Test loss:  0.5711199045181274
+Epoch:120 Test error: 0.1539
+tensor(0.0102, device='cuda:0')
+tensor(0.0079, device='cuda:0')
+tensor(0.0083, device='cuda:0')
+tensor(0.0077, device='cuda:0')
+tensor(0.0082, device='cuda:0')
+tensor(0.0077, device='cuda:0')
+tensor(0.0073, device='cuda:0')
+tensor(0.0077, device='cuda:0')
+tensor(0.0077, device='cuda:0')
+tensor(0.0075, device='cuda:0')
+ * Acc@1 0.844
+Test loss:  0.5782655477523804
+Epoch:130 Test error: 0.1560
+tensor(0.0072, device='cuda:0')
+tensor(0.0070, device='cuda:0')
+tensor(0.0074, device='cuda:0')
+tensor(0.0070, device='cuda:0')
+tensor(0.0071, device='cuda:0')
+tensor(0.0068, device='cuda:0')
+tensor(0.0073, device='cuda:0')
+tensor(0.0068, device='cuda:0')
+tensor(0.0070, device='cuda:0')
+tensor(0.0066, device='cuda:0')
+ * Acc@1 0.843
+Test loss:  0.5868901610374451
+Epoch:140 Test error: 0.1575
+tensor(0.0066, device='cuda:0')
+tensor(0.0070, device='cuda:0')
+tensor(0.0071, device='cuda:0')
+tensor(0.0067, device='cuda:0')
+tensor(0.0068, device='cuda:0')
+tensor(0.0067, device='cuda:0')
+tensor(0.0062, device='cuda:0')
+tensor(0.0065, device='cuda:0')
+tensor(0.0062, device='cuda:0')
+tensor(0.0065, device='cuda:0')
+ * Acc@1 0.841
+Test loss:  0.5938365459442139
+Epoch:150 Test error: 0.1589
+tensor(0.0060, device='cuda:0')
+tensor(0.0062, device='cuda:0')
+tensor(0.0059, device='cuda:0')
+tensor(0.0062, device='cuda:0')
+tensor(0.0060, device='cuda:0')
+tensor(0.0059, device='cuda:0')
+tensor(0.0059, device='cuda:0')
+tensor(0.0062, device='cuda:0')
+tensor(0.0057, device='cuda:0')
+tensor(0.0063, device='cuda:0')
+ * Acc@1 0.840
+Test loss:  0.6013762950897217
+Epoch:160 Test error: 0.1602
+tensor(0.0057, device='cuda:0')
+tensor(0.0054, device='cuda:0')
+tensor(0.0058, device='cuda:0')
+tensor(0.0059, device='cuda:0')
+tensor(0.0056, device='cuda:0')
+tensor(0.0055, device='cuda:0')
+tensor(0.0055, device='cuda:0')
+tensor(0.0053, device='cuda:0')
+tensor(0.0052, device='cuda:0')
+tensor(0.0052, device='cuda:0')
+ * Acc@1 0.838
+Test loss:  0.608290433883667
+Epoch:170 Test error: 0.1624
+tensor(0.0051, device='cuda:0')
+tensor(0.0052, device='cuda:0')
+tensor(0.0051, device='cuda:0')
+tensor(0.0055, device='cuda:0')
+tensor(0.0054, device='cuda:0')
+tensor(0.0053, device='cuda:0')
+tensor(0.0051, device='cuda:0')
+tensor(0.0059, device='cuda:0')
+tensor(0.0050, device='cuda:0')
+tensor(0.0052, device='cuda:0')
+ * Acc@1 0.836
+Test loss:  0.6144267320632935
+Epoch:180 Test error: 0.1639
+tensor(0.0049, device='cuda:0')
+tensor(0.0049, device='cuda:0')
+tensor(0.0050, device='cuda:0')
+tensor(0.0051, device='cuda:0')
+tensor(0.0048, device='cuda:0')
+tensor(0.0053, device='cuda:0')
+tensor(0.0048, device='cuda:0')
+tensor(0.0049, device='cuda:0')
+tensor(0.0048, device='cuda:0')
+tensor(0.0049, device='cuda:0')
+ * Acc@1 0.836
+Test loss:  0.6197076439857483
+Epoch:190 Test error: 0.1643
+tensor(0.0047, device='cuda:0')
+tensor(0.0048, device='cuda:0')
+tensor(0.0046, device='cuda:0')
+tensor(0.0056, device='cuda:0')
+tensor(0.0050, device='cuda:0')
+tensor(0.0052, device='cuda:0')
+tensor(0.0047, device='cuda:0')
+tensor(0.0054, device='cuda:0')
+tensor(0.0045, device='cuda:0')
+tensor(0.0048, device='cuda:0')
+ * Acc@1 0.835
+Test loss:  0.6246267557144165
+Epoch:200 Test error: 0.1647
+tensor(0.0045, device='cuda:0')
+tensor(0.0047, device='cuda:0')
+tensor(0.0047, device='cuda:0')
+tensor(0.0046, device='cuda:0')
+tensor(0.0044, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0046, device='cuda:0')
+tensor(0.0048, device='cuda:0')
+tensor(0.0044, device='cuda:0')
+tensor(0.0042, device='cuda:0')
+ * Acc@1 0.835
+Test loss:  0.6303201913833618
+Epoch:210 Test error: 0.1654
+tensor(0.0042, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0042, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+ * Acc@1 0.833
+Test loss:  0.6361657381057739
+Epoch:220 Test error: 0.1668
+tensor(0.0043, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0047, device='cuda:0')
+tensor(0.0040, device='cuda:0')
+tensor(0.0051, device='cuda:0')
+tensor(0.0040, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0042, device='cuda:0')
+tensor(0.0039, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+ * Acc@1 0.832
+Test loss:  0.6428987383842468
+Epoch:230 Test error: 0.1678
+tensor(0.0041, device='cuda:0')
+tensor(0.0039, device='cuda:0')
+tensor(0.0044, device='cuda:0')
+tensor(0.0039, device='cuda:0')
+tensor(0.0045, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0039, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0042, device='cuda:0')
+ * Acc@1 0.832
+Test loss:  0.6479902863502502
+Epoch:240 Test error: 0.1684
+tensor(0.0040, device='cuda:0')
+tensor(0.0042, device='cuda:0')
+tensor(0.0044, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0039, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0038, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+ * Acc@1 0.831
+Test loss:  0.6526248455047607
+Epoch:250 Test error: 0.1689
+tensor(0.0036, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+ * Acc@1 0.830
+Test loss:  0.6574620008468628
+Epoch:260 Test error: 0.1697
+tensor(0.0038, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0038, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+tensor(0.0057, device='cuda:0')
+ * Acc@1 0.829
+Test loss:  0.661564826965332
+Epoch:270 Test error: 0.1708
+tensor(0.0038, device='cuda:0')
+tensor(0.0047, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0050, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0045, device='cuda:0')
+tensor(0.0033, device='cuda:0')
+tensor(0.0050, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+ * Acc@1 0.829
+Test loss:  0.6667624115943909
+Epoch:280 Test error: 0.1712
+tensor(0.0054, device='cuda:0')
+tensor(0.0046, device='cuda:0')
+tensor(0.0055, device='cuda:0')
+tensor(0.0053, device='cuda:0')
+tensor(0.0045, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0033, device='cuda:0')
+tensor(0.0054, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+ * Acc@1 0.828
+Test loss:  0.6700395941734314
+Epoch:290 Test error: 0.1718
+tensor(0.0036, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0038, device='cuda:0')
+tensor(0.0042, device='cuda:0')
+tensor(0.0040, device='cuda:0')
+tensor(0.0038, device='cuda:0')
+tensor(0.0044, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+ * Acc@1 0.828
+Test loss:  0.6735697984695435
+Epoch:300 Test error: 0.1722
+tensor(0.0033, device='cuda:0')
+tensor(0.0033, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+tensor(0.0038, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0033, device='cuda:0')
+tensor(0.0033, device='cuda:0')
+ * Acc@1 0.827
+Test loss:  0.6777309775352478
+Epoch:310 Test error: 0.1727
+tensor(0.0031, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0038, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+ * Acc@1 0.826
+Test loss:  0.6819956302642822
+Epoch:320 Test error: 0.1738
+tensor(0.0035, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0038, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0038, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+ * Acc@1 0.825
+Test loss:  0.6865769624710083
+Epoch:330 Test error: 0.1747
+tensor(0.0030, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+ * Acc@1 0.825
+Test loss:  0.6893635988235474
+Epoch:340 Test error: 0.1755
+tensor(0.0029, device='cuda:0')
+tensor(0.0033, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0033, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+ * Acc@1 0.823
+Test loss:  0.6928614377975464
+Epoch:350 Test error: 0.1767
+tensor(0.0029, device='cuda:0')
+tensor(0.0039, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0039, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+tensor(0.0048, device='cuda:0')
+ * Acc@1 0.823
+Test loss:  0.6963002681732178
+Epoch:360 Test error: 0.1773
+tensor(0.0037, device='cuda:0')
+tensor(0.0060, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+tensor(0.0045, device='cuda:0')
+tensor(0.0077, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0100, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0055, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+ * Acc@1 0.822
+Test loss:  0.7002462148666382
+Epoch:370 Test error: 0.1783
+tensor(0.0030, device='cuda:0')
+tensor(0.0057, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0053, device='cuda:0')
+tensor(0.0033, device='cuda:0')
+tensor(0.0060, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0045, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+ * Acc@1 0.821
+Test loss:  0.7040062546730042
+Epoch:380 Test error: 0.1788
+tensor(0.0025, device='cuda:0')
+tensor(0.0044, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0040, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0045, device='cuda:0')
+ * Acc@1 0.821
+Test loss:  0.7075617909431458
+Epoch:390 Test error: 0.1795
+tensor(0.0042, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+ * Acc@1 0.820
+Test loss:  0.7106524705886841
+Epoch:400 Test error: 0.1802
+tensor(0.0035, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0055, device='cuda:0')
+ * Acc@1 0.819
+Test loss:  0.7161078453063965
+Epoch:410 Test error: 0.1810
+tensor(0.0041, device='cuda:0')
+tensor(0.0048, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0049, device='cuda:0')
+tensor(0.0040, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0060, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0059, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+ * Acc@1 0.818
+Test loss:  0.7186945080757141
+Epoch:420 Test error: 0.1817
+tensor(0.0037, device='cuda:0')
+tensor(0.0039, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0039, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0033, device='cuda:0')
+ * Acc@1 0.817
+Test loss:  0.7215854525566101
+Epoch:430 Test error: 0.1829
+tensor(0.0025, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0033, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+ * Acc@1 0.817
+Test loss:  0.7259054780006409
+Epoch:440 Test error: 0.1835
+tensor(0.0033, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+ * Acc@1 0.816
+Test loss:  0.7301012873649597
+Epoch:450 Test error: 0.1844
+tensor(0.0026, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+ * Acc@1 0.815
+Test loss:  0.7319130897521973
+Epoch:460 Test error: 0.1850
+tensor(0.0025, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+ * Acc@1 0.815
+Test loss:  0.7361168265342712
+Epoch:470 Test error: 0.1854
+tensor(0.0025, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+ * Acc@1 0.814
+Test loss:  0.7382479310035706
+Epoch:480 Test error: 0.1859
+tensor(0.0026, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0040, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+ * Acc@1 0.814
+Test loss:  0.7407629489898682
+Epoch:490 Test error: 0.1865
+tensor(0.0042, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0039, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0038, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0044, device='cuda:0')
+ * Acc@1 0.813
+Test loss:  0.7452312707901001
+Epoch:500 Test error: 0.1871
+tensor(0.0022, device='cuda:0')
+tensor(0.0045, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0051, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0065, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+ * Acc@1 0.812
+Test loss:  0.7485457062721252
+Epoch:510 Test error: 0.1876
+tensor(0.0048, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0038, device='cuda:0')
+tensor(0.0045, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0044, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0033, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+ * Acc@1 0.812
+Test loss:  0.7506711483001709
+Epoch:520 Test error: 0.1878
+tensor(0.0036, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0055, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0044, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0039, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+ * Acc@1 0.811
+Test loss:  0.7534855604171753
+Epoch:530 Test error: 0.1886
+tensor(0.0033, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+ * Acc@1 0.811
+Test loss:  0.7562604546546936
+Epoch:540 Test error: 0.1892
+tensor(0.0028, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+ * Acc@1 0.811
+Test loss:  0.7588675618171692
+Epoch:550 Test error: 0.1894
+tensor(0.0022, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+ * Acc@1 0.810
+Test loss:  0.7612740993499756
+Epoch:560 Test error: 0.1896
+tensor(0.0021, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+ * Acc@1 0.809
+Test loss:  0.7639036178588867
+Epoch:570 Test error: 0.1905
+tensor(0.0020, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0045, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0047, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0044, device='cuda:0')
+ * Acc@1 0.809
+Test loss:  0.7661012411117554
+Epoch:580 Test error: 0.1911
+tensor(0.0019, device='cuda:0')
+tensor(0.0052, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0045, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+ * Acc@1 0.809
+Test loss:  0.7673797607421875
+Epoch:590 Test error: 0.1908
+tensor(0.0040, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0064, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0050, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0062, device='cuda:0')
+ * Acc@1 0.809
+Test loss:  0.770156741142273
+Epoch:600 Test error: 0.1910
+tensor(0.0020, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0040, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0040, device='cuda:0')
+ * Acc@1 0.809
+Test loss:  0.7725937366485596
+Epoch:610 Test error: 0.1910
+tensor(0.0035, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+ * Acc@1 0.808
+Test loss:  0.7735707759857178
+Epoch:620 Test error: 0.1915
+tensor(0.0028, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+ * Acc@1 0.808
+Test loss:  0.7759040594100952
+Epoch:630 Test error: 0.1923
+tensor(0.0018, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+ * Acc@1 0.807
+Test loss:  0.7791081070899963
+Epoch:640 Test error: 0.1929
+tensor(0.0026, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+ * Acc@1 0.807
+Test loss:  0.7803263664245605
+Epoch:650 Test error: 0.1932
+tensor(0.0019, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0034, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+ * Acc@1 0.807
+Test loss:  0.7838951349258423
+Epoch:660 Test error: 0.1933
+tensor(0.0020, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0041, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+ * Acc@1 0.806
+Test loss:  0.786019504070282
+Epoch:670 Test error: 0.1938
+tensor(0.0018, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+ * Acc@1 0.806
+Test loss:  0.7881830930709839
+Epoch:680 Test error: 0.1940
+tensor(0.0026, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+ * Acc@1 0.805
+Test loss:  0.7905865907669067
+Epoch:690 Test error: 0.1947
+tensor(0.0017, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+ * Acc@1 0.804
+Test loss:  0.7932465076446533
+Epoch:700 Test error: 0.1958
+tensor(0.0016, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+ * Acc@1 0.803
+Test loss:  0.7953289151191711
+Epoch:710 Test error: 0.1965
+tensor(0.0016, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+ * Acc@1 0.803
+Test loss:  0.7967668175697327
+Epoch:720 Test error: 0.1969
+tensor(0.0020, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+ * Acc@1 0.803
+Test loss:  0.7994332313537598
+Epoch:730 Test error: 0.1974
+tensor(0.0018, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+ * Acc@1 0.802
+Test loss:  0.8014925718307495
+Epoch:740 Test error: 0.1979
+tensor(0.0016, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+ * Acc@1 0.802
+Test loss:  0.8036644458770752
+Epoch:750 Test error: 0.1982
+tensor(0.0018, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+ * Acc@1 0.802
+Test loss:  0.8054872751235962
+Epoch:760 Test error: 0.1984
+tensor(0.0015, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+ * Acc@1 0.802
+Test loss:  0.8070931434631348
+Epoch:770 Test error: 0.1984
+tensor(0.0014, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+ * Acc@1 0.801
+Test loss:  0.8089595437049866
+Epoch:780 Test error: 0.1990
+tensor(0.0015, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+ * Acc@1 0.800
+Test loss:  0.8111556172370911
+Epoch:790 Test error: 0.1998
+tensor(0.0016, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+ * Acc@1 0.800
+Test loss:  0.8118794560432434
+Epoch:800 Test error: 0.2002
+tensor(0.0015, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+ * Acc@1 0.800
+Test loss:  0.8129964470863342
+Epoch:810 Test error: 0.2001
+tensor(0.0015, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+ * Acc@1 0.799
+Test loss:  0.8145726323127747
+Epoch:820 Test error: 0.2005
+tensor(0.0027, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0040, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0048, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+ * Acc@1 0.799
+Test loss:  0.8174511790275574
+Epoch:830 Test error: 0.2014
+tensor(0.0033, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0045, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+ * Acc@1 0.798
+Test loss:  0.8187305331230164
+Epoch:840 Test error: 0.2018
+tensor(0.0024, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0043, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+ * Acc@1 0.798
+Test loss:  0.8194901347160339
+Epoch:850 Test error: 0.2019
+tensor(0.0034, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0037, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0049, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+ * Acc@1 0.798
+Test loss:  0.8219267725944519
+Epoch:860 Test error: 0.2020
+tensor(0.0034, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0046, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0024, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+ * Acc@1 0.798
+Test loss:  0.8233978748321533
+Epoch:870 Test error: 0.2020
+tensor(0.0021, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+ * Acc@1 0.797
+Test loss:  0.8254576921463013
+Epoch:880 Test error: 0.2026
+tensor(0.0035, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0028, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+ * Acc@1 0.796
+Test loss:  0.8270449042320251
+Epoch:890 Test error: 0.2035
+tensor(0.0029, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0038, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0030, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+tensor(0.0019, device='cuda:0')
+tensor(0.0031, device='cuda:0')
+ * Acc@1 0.796
+Test loss:  0.8283556699752808
+Epoch:900 Test error: 0.2038
+tensor(0.0017, device='cuda:0')
+tensor(0.0039, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0036, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0027, device='cuda:0')
+tensor(0.0035, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0038, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+ * Acc@1 0.796
+Test loss:  0.8297241926193237
+Epoch:910 Test error: 0.2039
+tensor(0.0028, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0032, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0022, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+ * Acc@1 0.796
+Test loss:  0.8314104676246643
+Epoch:920 Test error: 0.2041
+tensor(0.0013, device='cuda:0')
+tensor(0.0025, device='cuda:0')
+tensor(0.0023, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0021, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0026, device='cuda:0')
+tensor(0.0017, device='cuda:0')
+tensor(0.0020, device='cuda:0')
+ * Acc@1 0.795
+Test loss:  0.8347388505935669
+Epoch:930 Test error: 0.2045
+tensor(0.0022, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0029, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+ * Acc@1 0.795
+Test loss:  0.8366253972053528
+Epoch:940 Test error: 0.2046
+tensor(0.0016, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+ * Acc@1 0.795
+Test loss:  0.8385887742042542
+Epoch:950 Test error: 0.2046
+tensor(0.0013, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0014, device='cuda:0')
+tensor(0.0018, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+ * Acc@1 0.795
+Test loss:  0.8401268720626831
+Epoch:960 Test error: 0.2047
+tensor(0.0013, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0011, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+ * Acc@1 0.795
+Test loss:  0.8421583771705627
+Epoch:970 Test error: 0.2049
+tensor(0.0014, device='cuda:0')
+tensor(0.0011, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0016, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+ * Acc@1 0.795
+Test loss:  0.8438570499420166
+Epoch:980 Test error: 0.2052
+tensor(0.0015, device='cuda:0')
+tensor(0.0015, device='cuda:0')
+tensor(0.0011, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0013, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+ * Acc@1 0.794
+Test loss:  0.8461763858795166
+Epoch:990 Test error: 0.2055
+tensor(0.0013, device='cuda:0')
+tensor(0.0011, device='cuda:0')
+tensor(0.0011, device='cuda:0')
+tensor(0.0011, device='cuda:0')
+tensor(0.0011, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0011, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+tensor(0.0012, device='cuda:0')
+ * Acc@1 0.794
+Test loss:  0.8471759557723999
+Test error before tri: 0.2055
+loss on val before tri:  0.6421937942504883
+ * Acc@1 0.407
+Test loss:  3.6862194538116455
+Test error after tri: 0.5929
+loss on val after tri:  3.7295634746551514
+[0.8726, 0.8816, 0.877, 0.8732, 0.8658, 0.8606, 0.8552, 0.8551, 0.8509, 0.8495, 0.8475, 0.8468, 0.8461, 0.844, 0.8425, 0.8411, 0.8398, 0.8376, 0.8361, 0.8357, 0.8353, 0.8346, 0.8332, 0.8322, 0.8316, 0.8311, 0.8303, 0.8292, 0.8288, 0.8282, 0.8278, 0.8273, 0.8262, 0.8253, 0.8245, 0.8233, 0.8227, 0.8217, 0.8212, 0.8205, 0.8198, 0.819, 0.8183, 0.8171, 0.8165, 0.8156, 0.815, 0.8146, 0.8141, 0.8135, 0.8129, 0.8124, 0.8122, 0.8114, 0.8108, 0.8106, 0.8104, 0.8095, 0.8089, 0.8092, 0.809, 0.809, 0.8085, 0.8077, 0.8071, 0.8068, 0.8067, 0.8062, 0.806, 0.8053, 0.8042, 0.8035, 0.8031, 0.8026, 0.8021, 0.8018, 0.8016, 0.8016, 0.801, 0.8002, 0.7998, 0.7999, 0.7995, 0.7986, 0.7982, 0.7981, 0.798, 0.798, 0.7974, 0.7965, 0.7962, 0.7961, 0.7959, 0.7955, 0.7954, 0.7954, 0.7953, 0.7951, 0.7948, 0.7945, 0.7945, 0.4071]

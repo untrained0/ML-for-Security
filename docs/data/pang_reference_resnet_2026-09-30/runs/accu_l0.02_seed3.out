@@ -1,0 +1,320 @@
+/home/soham/Soham/pang_reference/AccumulativeAttack/feder_runner.py:93: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  ckpt = torch.load(os.path.join(args.resume, args.model_name))
+Namespace(dataroot='data/CIFAR-10/', shared=None, depth=18, group_norm=32, batch_size=100, test_batch_size=500, workers=0, log_name='log_accu_l0.02_seed3.txt', attack_method='pgd', print_freq=50, lr=0.1, accu_iter=1, online=False, shuffle=False, epsilon=0.2, dset_size=0, use_bn=True, only_second=False, only_normal=False, only_reg=False, test_tri=False, resume='checkpoints_base_bn', model_name='epoch40.pth', mode='train', onlinemode='train', outf='.', momentum=0.9, weight_decay=0, fe_tri_scale=1.0, fe_train_scale=1.0, feder_lambda=0.02, feder_lambda_clean=1.0, epochs=1000, num_steps=2, seed=3, use_initlr=False, threshold=1.202, restore_optimizer=False, clip_gradnorm=False, clipvalue=1, poisoned_trigger_step=1.0, main='federated')
+Resuming from checkpoints_base_bn...
+Epoch: 40 Error: 0.133
+Preparing data...
+Files already downloaded and verified
+Files already downloaded and verified
+ * Acc@1 0.867
+Test loss:  0.4575842320919037
+Initial test error: 0.1330
+ * Acc@1 0.873
+Test loss:  0.4323868751525879
+Epoch:0 Test error: 0.1270
+ * Acc@1 0.884
+Test loss:  0.38571587204933167
+Epoch:10 Test error: 0.1162
+ * Acc@1 0.884
+Test loss:  0.3818986117839813
+Epoch:20 Test error: 0.1160
+ * Acc@1 0.883
+Test loss:  0.3829275369644165
+Epoch:30 Test error: 0.1169
+ * Acc@1 0.882
+Test loss:  0.38764700293540955
+Epoch:40 Test error: 0.1180
+ * Acc@1 0.881
+Test loss:  0.39447513222694397
+Epoch:50 Test error: 0.1193
+ * Acc@1 0.879
+Test loss:  0.403011292219162
+Epoch:60 Test error: 0.1207
+ * Acc@1 0.876
+Test loss:  0.41512808203697205
+Epoch:70 Test error: 0.1240
+ * Acc@1 0.873
+Test loss:  0.4318641722202301
+Epoch:80 Test error: 0.1267
+ * Acc@1 0.871
+Test loss:  0.4451349079608917
+Epoch:90 Test error: 0.1286
+ * Acc@1 0.870
+Test loss:  0.45194971561431885
+Epoch:100 Test error: 0.1301
+ * Acc@1 0.869
+Test loss:  0.45893123745918274
+Epoch:110 Test error: 0.1311
+ * Acc@1 0.867
+Test loss:  0.46673110127449036
+Epoch:120 Test error: 0.1331
+ * Acc@1 0.866
+Test loss:  0.47089794278144836
+Epoch:130 Test error: 0.1339
+ * Acc@1 0.865
+Test loss:  0.4767918586730957
+Epoch:140 Test error: 0.1347
+ * Acc@1 0.864
+Test loss:  0.4822658598423004
+Epoch:150 Test error: 0.1357
+ * Acc@1 0.864
+Test loss:  0.4870704114437103
+Epoch:160 Test error: 0.1365
+ * Acc@1 0.862
+Test loss:  0.4905289113521576
+Epoch:170 Test error: 0.1378
+ * Acc@1 0.862
+Test loss:  0.49401524662971497
+Epoch:180 Test error: 0.1381
+ * Acc@1 0.861
+Test loss:  0.4964539408683777
+Epoch:190 Test error: 0.1392
+ * Acc@1 0.860
+Test loss:  0.4990794062614441
+Epoch:200 Test error: 0.1400
+ * Acc@1 0.860
+Test loss:  0.5015861392021179
+Epoch:210 Test error: 0.1401
+ * Acc@1 0.859
+Test loss:  0.504035472869873
+Epoch:220 Test error: 0.1408
+ * Acc@1 0.858
+Test loss:  0.5069799423217773
+Epoch:230 Test error: 0.1419
+ * Acc@1 0.858
+Test loss:  0.5100984573364258
+Epoch:240 Test error: 0.1425
+ * Acc@1 0.857
+Test loss:  0.5121927857398987
+Epoch:250 Test error: 0.1433
+ * Acc@1 0.856
+Test loss:  0.5143111944198608
+Epoch:260 Test error: 0.1438
+ * Acc@1 0.856
+Test loss:  0.516074538230896
+Epoch:270 Test error: 0.1441
+ * Acc@1 0.855
+Test loss:  0.5181849002838135
+Epoch:280 Test error: 0.1450
+ * Acc@1 0.855
+Test loss:  0.5196402668952942
+Epoch:290 Test error: 0.1453
+ * Acc@1 0.854
+Test loss:  0.5219915509223938
+Epoch:300 Test error: 0.1459
+ * Acc@1 0.854
+Test loss:  0.5237374305725098
+Epoch:310 Test error: 0.1459
+ * Acc@1 0.853
+Test loss:  0.5253686308860779
+Epoch:320 Test error: 0.1466
+ * Acc@1 0.853
+Test loss:  0.5276409387588501
+Epoch:330 Test error: 0.1472
+ * Acc@1 0.853
+Test loss:  0.5294771790504456
+Epoch:340 Test error: 0.1471
+ * Acc@1 0.853
+Test loss:  0.5310949683189392
+Epoch:350 Test error: 0.1473
+ * Acc@1 0.853
+Test loss:  0.5326367616653442
+Epoch:360 Test error: 0.1469
+ * Acc@1 0.853
+Test loss:  0.5341876745223999
+Epoch:370 Test error: 0.1475
+ * Acc@1 0.852
+Test loss:  0.5354889631271362
+Epoch:380 Test error: 0.1481
+ * Acc@1 0.852
+Test loss:  0.5370470881462097
+Epoch:390 Test error: 0.1481
+ * Acc@1 0.852
+Test loss:  0.5382805466651917
+Epoch:400 Test error: 0.1484
+ * Acc@1 0.851
+Test loss:  0.5395749807357788
+Epoch:410 Test error: 0.1487
+ * Acc@1 0.851
+Test loss:  0.5410748720169067
+Epoch:420 Test error: 0.1490
+ * Acc@1 0.851
+Test loss:  0.5427143573760986
+Epoch:430 Test error: 0.1495
+ * Acc@1 0.850
+Test loss:  0.5440728068351746
+Epoch:440 Test error: 0.1498
+ * Acc@1 0.850
+Test loss:  0.5455304384231567
+Epoch:450 Test error: 0.1504
+ * Acc@1 0.849
+Test loss:  0.5470557808876038
+Epoch:460 Test error: 0.1506
+ * Acc@1 0.849
+Test loss:  0.5486122965812683
+Epoch:470 Test error: 0.1510
+ * Acc@1 0.849
+Test loss:  0.5494961142539978
+Epoch:480 Test error: 0.1512
+ * Acc@1 0.848
+Test loss:  0.5510129928588867
+Epoch:490 Test error: 0.1520
+ * Acc@1 0.848
+Test loss:  0.5519769787788391
+Epoch:500 Test error: 0.1522
+ * Acc@1 0.848
+Test loss:  0.5536609888076782
+Epoch:510 Test error: 0.1524
+ * Acc@1 0.847
+Test loss:  0.5553542971611023
+Epoch:520 Test error: 0.1529
+ * Acc@1 0.847
+Test loss:  0.5565528273582458
+Epoch:530 Test error: 0.1530
+ * Acc@1 0.847
+Test loss:  0.5578635931015015
+Epoch:540 Test error: 0.1532
+ * Acc@1 0.847
+Test loss:  0.5590929388999939
+Epoch:550 Test error: 0.1533
+ * Acc@1 0.846
+Test loss:  0.5604838728904724
+Epoch:560 Test error: 0.1538
+ * Acc@1 0.846
+Test loss:  0.561834990978241
+Epoch:570 Test error: 0.1542
+ * Acc@1 0.846
+Test loss:  0.563001275062561
+Epoch:580 Test error: 0.1542
+ * Acc@1 0.846
+Test loss:  0.5642066597938538
+Epoch:590 Test error: 0.1544
+ * Acc@1 0.846
+Test loss:  0.5655912756919861
+Epoch:600 Test error: 0.1545
+ * Acc@1 0.845
+Test loss:  0.5667148232460022
+Epoch:610 Test error: 0.1546
+ * Acc@1 0.845
+Test loss:  0.5682234168052673
+Epoch:620 Test error: 0.1553
+ * Acc@1 0.845
+Test loss:  0.569252610206604
+Epoch:630 Test error: 0.1552
+ * Acc@1 0.844
+Test loss:  0.5705047845840454
+Epoch:640 Test error: 0.1557
+ * Acc@1 0.844
+Test loss:  0.5716213583946228
+Epoch:650 Test error: 0.1561
+ * Acc@1 0.844
+Test loss:  0.5726988911628723
+Epoch:660 Test error: 0.1560
+ * Acc@1 0.844
+Test loss:  0.5738679766654968
+Epoch:670 Test error: 0.1561
+ * Acc@1 0.844
+Test loss:  0.5751903057098389
+Epoch:680 Test error: 0.1562
+ * Acc@1 0.844
+Test loss:  0.5762152671813965
+Epoch:690 Test error: 0.1564
+ * Acc@1 0.844
+Test loss:  0.5776332020759583
+Epoch:700 Test error: 0.1564
+ * Acc@1 0.843
+Test loss:  0.5791410803794861
+Epoch:710 Test error: 0.1566
+ * Acc@1 0.843
+Test loss:  0.5801776647567749
+Epoch:720 Test error: 0.1567
+ * Acc@1 0.843
+Test loss:  0.5814740657806396
+Epoch:730 Test error: 0.1566
+ * Acc@1 0.843
+Test loss:  0.5826538801193237
+Epoch:740 Test error: 0.1569
+ * Acc@1 0.843
+Test loss:  0.5837467908859253
+Epoch:750 Test error: 0.1569
+ * Acc@1 0.843
+Test loss:  0.5847593545913696
+Epoch:760 Test error: 0.1568
+ * Acc@1 0.843
+Test loss:  0.5858534574508667
+Epoch:770 Test error: 0.1573
+ * Acc@1 0.842
+Test loss:  0.5869157910346985
+Epoch:780 Test error: 0.1577
+ * Acc@1 0.842
+Test loss:  0.5880377888679504
+Epoch:790 Test error: 0.1581
+ * Acc@1 0.842
+Test loss:  0.5892197489738464
+Epoch:800 Test error: 0.1585
+ * Acc@1 0.841
+Test loss:  0.5903392434120178
+Epoch:810 Test error: 0.1588
+ * Acc@1 0.841
+Test loss:  0.5912994742393494
+Epoch:820 Test error: 0.1589
+ * Acc@1 0.841
+Test loss:  0.5922396779060364
+Epoch:830 Test error: 0.1590
+ * Acc@1 0.841
+Test loss:  0.5933035016059875
+Epoch:840 Test error: 0.1594
+ * Acc@1 0.840
+Test loss:  0.594128429889679
+Epoch:850 Test error: 0.1597
+ * Acc@1 0.840
+Test loss:  0.5949752926826477
+Epoch:860 Test error: 0.1598
+ * Acc@1 0.840
+Test loss:  0.596199631690979
+Epoch:870 Test error: 0.1601
+ * Acc@1 0.840
+Test loss:  0.5968034863471985
+Epoch:880 Test error: 0.1604
+ * Acc@1 0.840
+Test loss:  0.5975953340530396
+Epoch:890 Test error: 0.1604
+ * Acc@1 0.839
+Test loss:  0.598730742931366
+Epoch:900 Test error: 0.1607
+ * Acc@1 0.839
+Test loss:  0.599690318107605
+Epoch:910 Test error: 0.1608
+ * Acc@1 0.839
+Test loss:  0.6004006266593933
+Epoch:920 Test error: 0.1609
+ * Acc@1 0.839
+Test loss:  0.6009743809700012
+Epoch:930 Test error: 0.1614
+ * Acc@1 0.839
+Test loss:  0.6020445227622986
+Epoch:940 Test error: 0.1615
+ * Acc@1 0.839
+Test loss:  0.6030848026275635
+Epoch:950 Test error: 0.1614
+ * Acc@1 0.839
+Test loss:  0.6039068102836609
+Epoch:960 Test error: 0.1612
+ * Acc@1 0.839
+Test loss:  0.6044403314590454
+Epoch:970 Test error: 0.1614
+ * Acc@1 0.839
+Test loss:  0.6054896116256714
+Epoch:980 Test error: 0.1614
+ * Acc@1 0.839
+Test loss:  0.6061372756958008
+Epoch:990 Test error: 0.1615
+ * Acc@1 0.838
+Test loss:  0.6072652339935303
+Test error before tri: 0.1616
+loss on val before tri:  0.49470359086990356
+ * Acc@1 0.211
+Test loss:  6.428079605102539
+Test error after tri: 0.7893
+loss on val after tri:  6.1172637939453125
+[0.873, 0.8838, 0.884, 0.8831, 0.882, 0.8807, 0.8793, 0.876, 0.8733, 0.8714, 0.8699, 0.8689, 0.8669, 0.8661, 0.8653, 0.8643, 0.8635, 0.8622, 0.8619, 0.8608, 0.86, 0.8599, 0.8592, 0.8581, 0.8575, 0.8567, 0.8562, 0.8559, 0.855, 0.8547, 0.8541, 0.8541, 0.8534, 0.8528, 0.8529, 0.8527, 0.8531, 0.8525, 0.8519, 0.8519, 0.8516, 0.8513, 0.851, 0.8505, 0.8502, 0.8496, 0.8494, 0.849, 0.8488, 0.848, 0.8478, 0.8476, 0.8471, 0.847, 0.8468, 0.8467, 0.8462, 0.8458, 0.8458, 0.8456, 0.8455, 0.8454, 0.8447, 0.8448, 0.8443, 0.8439, 0.844, 0.8439, 0.8438, 0.8436, 0.8436, 0.8434, 0.8433, 0.8434, 0.8431, 0.8431, 0.8432, 0.8427, 0.8423, 0.8419, 0.8415, 0.8412, 0.8411, 0.841, 0.8406, 0.8403, 0.8402, 0.8399, 0.8396, 0.8396, 0.8393, 0.8392, 0.8391, 0.8386, 0.8385, 0.8386, 0.8388, 0.8386, 0.8386, 0.8385, 0.8384, 0.2107]
