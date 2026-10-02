@@ -14,11 +14,32 @@ export interface ServerAttackMeta {
 export class ServerUnavailableError extends Error {}
 
 /**
+ * 8-bit images (every feature exactly k/255) travel as base64 bytes: as JSON a 3072-d CIFAR image
+ * costs ~18 characters per pixel. The server rebuilds the identical doubles (server/attack.ts).
+ * Anything that is not exactly 8-bit is sent as it is.
+ */
+function packPixels(X: number[][]): any {
+  const n = X.length, d = X[0]?.length ?? 0;
+  const bytes = new Uint8Array(n * d);
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < d; j++) {
+      const v = X[i][j] * 255, k = Math.round(v);
+      if (k < 0 || k > 255 || k / 255 !== X[i][j]) return X;
+      bytes[i * d + j] = k;
+    }
+  }
+  let bin = '';
+  for (let o = 0; o < bytes.length; o += 0x8000) bin += String.fromCharCode(...bytes.subarray(o, o + 0x8000));
+  return { u8: btoa(bin), n, d };
+}
+
+/**
  * The dataset as the attack needs it: display-only payloads (image pixels, the PCA window, the
- * duplicate X2D) stay in the browser. MNIST for Biggio is ~9 MB of JSON before gzip either way.
+ * duplicate X2D) stay in the browser, and image features go as bytes.
  */
 function slimDataset(ds: any) {
-  const split = (s: any) => s && { X: s.X, y: s.y, ...(s.Y ? { Y: s.Y } : {}) };
+  const pack = (X: number[][]) => (ds.imageShape && X?.length ? packPixels(X) : X);
+  const split = (s: any) => s && { X: pack(s.X), y: s.y, ...(s.Y ? { Y: s.Y } : {}) };
   const { train, valid, test, images, view, pcaState, X2D, featureNames, ...rest } = ds;
   return { ...rest, train: split(train), valid: split(valid), test: split(test) };
 }

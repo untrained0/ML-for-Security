@@ -1,16 +1,18 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import useStore from '@/store/useStore';
+import { getAlgorithm } from '@/engine/architectures';
 
 export default function GuidedTour() {
   const { activeAlgorithm } = useStore();
   const [isOpen, setIsOpen] = useState(true);
   const [step, setStep] = useState(0);
-
-  // Reset step if algorithm changes
-  useEffect(() => {
+  // Switching algorithms starts its tour at card 1 (state adjusted during render, not in an effect)
+  const [shownFor, setShownFor] = useState(activeAlgorithm);
+  if (shownFor !== activeAlgorithm) {
+    setShownFor(activeAlgorithm);
     setStep(0);
-  }, [activeAlgorithm]);
+  }
 
   const svmSteps = [
     {
@@ -50,7 +52,8 @@ export default function GuidedTour() {
     }
   ];
 
-  const steps = activeAlgorithm === 'biggio2012' ? svmSteps : regressionSteps;
+  const steps = getAlgorithm(activeAlgorithm).tourSteps
+    ?? (activeAlgorithm === 'biggio2012' ? svmSteps : regressionSteps);
 
   if (!isOpen) {
     return (

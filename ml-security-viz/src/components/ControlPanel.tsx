@@ -104,6 +104,7 @@ export default function ControlPanel({ onGenerate, onTrain, onAttack, onGenerate
   };
 
   const renderField = (field: ConfigField) => {
+    if (field.showIf && ![field.showIf.equals].flat().includes(getVal(field.showIf.key))) return null;
     const val = getVal(field.key);
 
     if (field.type === 'select') {
@@ -217,7 +218,7 @@ export default function ControlPanel({ onGenerate, onTrain, onAttack, onGenerate
       {/* Model Config — dynamically rendered */}
       <section className="flex flex-col gap-4 relative z-10">
         <h3 className="eyebrow flex items-center gap-2">
-          <span>{isRegression ? '📈' : '🧠'}</span> {isRegression ? 'Regression Model' : 'SVM Model'}
+          <span>{isRegression ? '📈' : '🧠'}</span> {(typeof alg.modelLabel === 'function' ? alg.modelLabel(config) : alg.modelLabel) ?? (isRegression ? 'Regression Model' : 'SVM Model')}
         </h3>
         <div className="flex flex-col gap-3">
           {modelFields.map(renderField)}

@@ -14,6 +14,8 @@ export interface ConfigField {
   step?: number;
   options?: { value: string; label: string }[];
   tooltip?: string;
+  /** Show the field only while another field has one of these values (e.g. MLP-only settings). */
+  showIf?: { key: string; equals: string | string[] };
 }
 
 /** Standardized trace frame that all algorithms must emit */
@@ -40,25 +42,37 @@ export interface TraceFrame {
   // Online / accumulative attack fields (Pang et al. 2021)
   phase?: 'accumulative' | 'trigger' | 'baseline';
   batchIndex?: number;
-  perturbationNorm?: number;
-  secretAccuracy?: number;     // accuracy during accumulative phase (must stay above threshold)
-  triggerLoss?: number;
-  accumulatedDrift?: number;   // how far θ has drifted from clean θ
-  gradientAlignment?: number;  // ⟨∇L(S_val;θ), ∇L(P(S_T);θ)⟩ — Eq. 7; negative = primed
+  poisonSource?: number[];     // index in dataset.train of the clean image each poisonX row perturbs
+  perturbationNorm?: number;   // ‖δ‖∞ of the batch fed this round, in [0,1] pixel units
+  secretAccuracy?: number;     // accuracy on the attacker's S_val
+  triggerLoss?: number;        // L(S_val; θ)
+  accumulatedDrift?: number;   // ‖θ − θ_0‖
+  gradientAlignment?: number;  // Eq. 7 alignment of ∇L(S_val;θ) and ∇L(P(S_T);θ) (cosine or inner product); negative = primed
   alignmentGradNorm?: number;  // ‖G_t‖, the strength of this round's accumulation signal
+  accumulativeObjective?: number; // H_t = ĝ(A_t(S_t))ᵀ d_t reached by PGD (Eq. 9)
   stealthBudgetUsed?: number;  // L(S_val;θ_t) − L(S_val;θ̃_t), against the clean trajectory
   stealthBudget?: number;      // γ
-  earlyStopped?: boolean;      // stealth budget exhausted; accumulation halted
-  predictedLossJump?: number;  // −β⟨∇L(S_val), ∇L(P(S_T))⟩, the first-order forecast
+  accuracyFloor?: number;      // test accuracy the accumulative phase must stay above (§4 early stop)
+  earlyStopped?: boolean;      // a secrecy limit was reached; accumulation halted
+  predictedLossJump?: number;  // −β⟨∇L(S_val), ∇L(P(S_T))⟩, the first-order forecast (Eq. 6)
   actualLossJump?: number;     // the realised change in validation loss
+  preTriggerAccuracy?: number; // test accuracy of θ_T, just before the trigger
+  vanillaTriggerAccuracy?: number; // the same trigger fed to the clean trajectory θ̃_T (Table 1 baseline)
+  accumulatedRounds?: number;  // accumulative rounds actually run
 
-  // Weight-space gradient vectors (w components only) so the explainer can
-  // draw the geometry the attack is actually built on.
-  gradVal?: number[];          // ∇_w L(S_val; θ_t)
-  gradTrigger?: number[];      // ∇_w L(P(S_T); θ_t)
-  gradBatch?: number[];        // ∇_w L(S_t; θ_t) — the honest update
-  gradAccum?: number[];        // G_t, the accumulation direction
-  gradTarget?: number[];       // d_t = ∇L(S_t) + λG_t
+  // Federated setting (Pang et al. 2021, Algorithm 2): the poisoners submit gradients, not images
+  updateNorm?: number;         // norm of the aggregate update submitted this round, before the server's clipping
+  clipFactor?: number;         // factor the server's clipping kept (1 = not clipped)
+  directAttackAccuracy?: number; // Table 3 baseline: one direct −s·∇L(S_val) update on the clean trajectory θ̃_T
+  velocityNorm?: number;       // ‖v_t‖, the victim optimiser's momentum buffer (carried into the trigger step)
+
+  // Parameter-space vectors as 2-D coordinates in the plane they span (exact angles and relative
+  // lengths), so the explainer can draw the geometry the attack is built on.
+  gradVal?: number[];          // ∇L(S_val; θ_t)
+  gradTrigger?: number[];      // ∇L(P(S_T); θ_t)
+  gradBatch?: number[];        // ĝ(S_t; θ_t) — the honest update
+  gradAccum?: number[];        // Ĝ_t, the accumulation direction
+  gradTarget?: number[];       // d_t = ĝ(S_t) + λĜ_t
 }
 
 /** The core interface every algorithm module must implement */
@@ -110,8 +124,82 @@ export interface AlgorithmModule {
    */
   score?: (rawModel: any, x: number[]) => number;
 
-  /** Optional: step-by-step explanation cards for guided learning (Transformer Explainer-style) */
-  explainerSteps?: ExplainerStep[];
+  /**
+   * Optional: step-by-step explanation cards for guided learning (Transformer Explainer-style); a
+   * function of the merged config when the module offers several settings.
+   */
+  explainerSteps?: ExplainerStep[] | ((config: Record<string, any>) => ExplainerStep[]);
+
+  /**
+   * Optional: heading of the control panel's model section (default 'SVM Model' / 'Regression
+   * Model'); a function of the merged config when the module offers several models.
+   */
+  modelLabel?: string | ((config: Record<string, any>) => string);
+
+  /**
+   * Optional: what the point inspector shows for the selected point. Without it the inspector
+   * shows the SVM view (decision value, hinge loss, dual weight α), or ŷ and |error| for regression.
+   */
+  pointDetails?: (ctx: PointContext) => PointDetails;
+
+  /**
+   * Optional: wording of the math panel's classification view (default: Biggio 2012's SVM); a
+   * function of the merged config when it depends on the chosen model.
+   */
+  mathPanel?: MathPanelLabels | ((config: Record<string, any>) => MathPanelLabels);
+
+  /**
+   * Optional: the guided-tour cards (the 💡 panel). Without it the tour shows Biggio 2012's SVM
+   * walkthrough for `biggio2012` and the regression walkthrough otherwise.
+   */
+  tourSteps?: TourStep[];
+}
+
+/** One card of the guided tour. */
+export interface TourStep { title: string; content: string }
+
+/** A KaTeX symbol with its tooltip; the poisoned-model row may use its own (e.g. w_p). */
+export interface LabelledSymbol { symbol: string; tooltip: string; poisonedSymbol?: string; poisonedTooltip?: string }
+
+export interface MathPanelLabels {
+  weights?: LabelledSymbol;          // w
+  bias?: LabelledSymbol;             // b
+  weightNorm?: LabelledSymbol;       // ‖w‖
+  loss?: LabelledSymbol;             // the model's loss (modelState.hingeLoss)
+  showSupportVectors?: boolean;      // default true
+  lowAccuracyHint?: string;          // after "The clean model is near chance level, …"
+  objective?: LabelledSymbol & { worse?: 'higher' | 'lower' };   // TraceFrame.objectiveValue
+  gradientLabel?: string;            // mean of TraceFrame.gradientNorms
+  equations?: { title: string; body: string }[];                 // the Reference Equations card
+}
+
+/** The point the inspector is showing, and the frames around it. */
+export interface PointContext {
+  kind: 'clean' | 'poison';
+  index: number;                  // into dataset.train (clean) or frame.poisonX (poison)
+  x: number[];
+  y: number;
+  frame: TraceFrame | null;       // the frame on screen
+  prevFrame: TraceFrame | null;   // the frame before it
+  cleanRawModel: any;
+  dataset: any;
+}
+
+/** One row of the inspector's table: a quantity in the first ("clean") and second ("poisoned") column. */
+export interface PointMetric {
+  label: string;
+  tooltip?: string;
+  clean?: number;                 // omitted when there is nothing to compare against
+  poisoned: number;
+  digits?: number;
+  worse?: 'higher' | 'lower';     // which way is worse; draws a coloured ↑/↓ between the columns
+}
+
+export interface PointDetails {
+  columns: [string, string];      // headers of the clean / poisoned columns
+  rows: PointMetric[];
+  extras?: { label: string; value: string; tooltip?: string }[];
+  note?: string;                  // one line under the table, e.g. which model the values use
 }
 
 /** A live readout chip shown beneath a step's equation. */

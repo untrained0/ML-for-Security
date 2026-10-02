@@ -170,7 +170,7 @@ function TriggerVisual({ frame }: { frame: any }) {
 
   return (
     <svg viewBox="0 0 200 124" className="w-full h-[124px]">
-      {[{ label: 'Eq. 7 forecast', v: predicted, y: 26, color: 'var(--info)' },
+      {[{ label: 'Eq. 6 forecast', v: predicted, y: 26, color: 'var(--info)' },
         { label: 'actual Δloss', v: actual, y: 70, color: 'var(--attack)' }].map(row => (
         <g key={row.label}>
           <text x={12} y={row.y - 6} fontSize="9" fill="var(--muted-foreground)" className="font-mono">

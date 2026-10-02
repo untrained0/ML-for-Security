@@ -143,6 +143,8 @@ const yourpaper2024: AlgorithmModule = {
       min: 0.01, max: 1.0, step: 0.01,
       tooltip: 'Description of what this parameter does'
     },
+    // A field shown only while another has one of the given values:
+    // { key: 'hiddenUnits', …, showIf: { key: 'victim', equals: 'mlp' } },
     // Add more config fields...
   ],
 

@@ -1,36 +1,32 @@
 /**
- * Pang et al. 2021 — Accumulative poisoning objectives (Algorithm 1, online setting)
+ * Pang et al. 2021 — the attack objectives and their exact gradients (online setting, §3.2).
  *
- * The attack is built on the *gradient alignment* of Eq. (7):
+ * Eq. (6), the vanilla poisoner at round T: to first order in β,
+ *   L(S_val; θ_{T+1}) ≈ L(S_val; θ_T) − β ∇L(S_val; θ_T)ᵀ ∇L(P(S_T); θ_T),
+ * so raising the validation loss means making that inner product as negative as possible.
  *
- *   min_{P, A}  ∇_θ L(S_val; A(θ_T))ᵀ ∇_θ L(P(S_T); A(θ_T))
- *   s.t.        L(S_val; A(θ_T)) ≤ L(S_val; θ_T) + γ
+ * Eq. (7) adds the accumulative phase A, which moves θ_T itself somewhere the trigger does more
+ * damage:  min_{P,A} ∇L(S_val; A(θ_T))ᵀ ∇L(P(S_T); A(θ_T)).
  *
- * Why an inner product? The trigger update is θ_{T+1} = θ_T − β ∇L(P(S_T); θ_T),
- * so to first order
+ * Eq. (9) / Algorithm 1 craft each accumulative batch by (A(θ_T) greedily replaced by θ_t)
+ *   max_{A_t}  ∇L(A_t(S_t); θ_t)ᵀ [ ∇L(S_t; θ_t) + λ G_t ],
+ *   G_t = ∇_θ [ ∇L(S_val; θ_t)ᵀ ∇L(P(S_T); θ_t) ],
+ * the bracket being a stop-gradient target. Algorithm 1 optionally normalises the three gradients
+ * "to concentrate on angular distances" (the reference code does); `normalized` switches between
+ * that cosine and Eq. 7's raw inner product.
  *
- *   L(S_val; θ_{T+1}) ≈ L(S_val; θ_T) − β ⟨∇L(S_val; θ_T), ∇L(P(S_T); θ_T)⟩.
- *
- * Driving that inner product negative is exactly what makes one trigger step
- * *raise* validation loss. The accumulative phase exists to steer θ into a
- * region where such an anti-aligned trigger gradient is available.
- *
- * Algorithm 1 realises this with a first-order surrogate per round:
- *   G_t = ∇_θ [ ⟨∇L(S_val; θ_t), ∇L(P(S_T); θ_t)⟩ ]
- *   H_t = ⟨ ∇L(A_t(S_t); θ_t), ∇L(S_t; θ_t) + λ G_t ⟩      ← maximised over δ
- * so that the resulting update −β∇L(A_t(S_t)) both keeps learning normally
- * (the ∇L(S_t) term) and descends the alignment (the λG_t term).
+ * Every derivative here is exact for either victim (model.ts): ∇_θ L from backprop, Hessian-vector
+ * products and pixel gradients of directional derivatives from the R-operator — no finite
+ * differences, even with the MLP's ~200k parameters.
  */
 
-import { lossGradient, cloneModel, type Grad } from './model';
+import { type Net, type Grad, type BatchStats, batchStats, gradFromStats, hessVec, pixelGradient } from './model';
 
-type Model = { w: number[]; b: number };
-
-// ── small parameter-space vector helpers ──
+// ── parameter-space vector helpers ──
 
 export function gdot(a: Grad, b: Grad): number {
-  let s = a.gb * b.gb;
-  for (let j = 0; j < a.gw.length; j++) s += a.gw[j] * b.gw[j];
+  let s = 0;
+  for (let j = 0; j < a.length; j++) s += a[j] * b[j];
   return s;
 }
 
@@ -40,216 +36,154 @@ export function gnorm(g: Grad): number {
 
 /** a + s·b */
 export function gaxpy(a: Grad, b: Grad, s: number): Grad {
-  return {
-    gw: a.gw.map((v, j) => v + s * b.gw[j]),
-    gb: a.gb + s * b.gb,
-  };
+  const out = new Float64Array(a.length);
+  for (let j = 0; j < a.length; j++) out[j] = a[j] + s * b[j];
+  return out;
 }
 
-/**
- * The alignment scalar from Eq. (7), evaluated at θ:
- *   a(θ) = ⟨∇L(S_val; θ), ∇L(S_trigger; θ)⟩
- * Negative values mean a trigger step would increase validation loss.
- */
-export function alignment(
-  model: Model,
-  validX: number[][], validY: number[],
-  trigX: number[][], trigY: number[],
-  l2: number = 0.01
-): number {
-  return gdot(
-    lossGradient(model, validX, validY, l2),
-    lossGradient(model, trigX, trigY, l2)
-  );
-}
-
-/**
- * The same alignment, normalised to a cosine.
- *
- * The reference implementation normalises its gradients before taking dot
- * products, and it matters here for the same reason: the raw inner product is
- * dominated by ‖∇L‖, which collapses as the model converges. Using the cosine
- * for the *optimisation signal* keeps λ meaning the same thing at every round.
- * The raw inner product is still what gets reported, because that is the
- * quantity in the first-order loss expansion.
- */
-export function cosineAlignment(
-  model: Model,
-  validX: number[][], validY: number[],
-  trigX: number[][], trigY: number[],
-  l2: number = 0.01
-): number {
-  const a = lossGradient(model, validX, validY, l2);
-  const b = lossGradient(model, trigX, trigY, l2);
-  const na = gnorm(a), nb = gnorm(b);
-  if (na < 1e-12 || nb < 1e-12) return 0;
-  return gdot(a, b) / (na * nb);
-}
-
-/**
- * G_t = ∇_θ a(θ) — how the alignment changes as the parameters move.
- *
- * This is a second-order quantity (it differentiates a product of gradients),
- * computed here by central differences over the d+1 parameters. That is cheap
- * for a 2-D visualiser and avoids hand-rolling Hessian-vector products.
- */
-export function alignmentParamGradient(
-  model: Model,
-  validX: number[][], validY: number[],
-  trigX: number[][], trigY: number[],
-  l2: number = 0.01,
-  h: number = 1e-4
-): Grad {
-  const score = (m: Model) => cosineAlignment(m, validX, validY, trigX, trigY, l2);
-  const gw = new Array(model.w.length).fill(0);
-
-  for (let j = 0; j < model.w.length; j++) {
-    const plus = cloneModel(model);
-    plus.w[j] += h;
-    const minus = cloneModel(model);
-    minus.w[j] -= h;
-    gw[j] = (score(plus) - score(minus)) / (2 * h);
-  }
-
-  const bPlus = cloneModel(model);
-  bPlus.b += h;
-  const bMinus = cloneModel(model);
-  bMinus.b -= h;
-  const gb = (score(bPlus) - score(bMinus)) / (2 * h);
-
-  return { gw, gb };
+export function gscale(a: Grad, s: number): Grad {
+  const out = new Float64Array(a.length);
+  for (let j = 0; j < a.length; j++) out[j] = a[j] * s;
+  return out;
 }
 
 /** g / ‖g‖ — the zero vector maps to itself. */
 export function gnormalize(g: Grad): Grad {
   const n = gnorm(g);
-  if (n < 1e-12) return { gw: g.gw.map(() => 0), gb: 0 };
-  return { gw: g.gw.map(v => v / n), gb: g.gb / n };
+  return n < 1e-12 ? gscale(g, 0) : gscale(g, 1 / n);
+}
+
+export function cosine(a: Grad, b: Grad): number {
+  const na = gnorm(a), nb = gnorm(b);
+  return na < 1e-12 || nb < 1e-12 ? 0 : gdot(a, b) / (na * nb);
 }
 
 /**
- * The direction the attacker wants this round's update to take:
- *   d_t = ĝ(S_t; θ_t) + λ Ĝ_t          (both terms unit-length)
- *
- * Normalising both parts before mixing is what makes λ a genuine dial. With
- * raw gradients the honest term and the accumulation term differ by orders of
- * magnitude — whichever happens to be larger wins outright, and λ barely
- * registers. The reference implementation combines L2-normalised gradients for
- * the same reason.
+ * ∂cos(u, v)/∂v = (û − cos·v̂)/‖v‖ — how the cosine responds to a change in v. Used both for the
+ * parameter gradient G_t and for backpropagating a cosine into the pixels of the batch behind v.
  */
-export function accumulativeTarget(
-  model: Model,
-  batchX: number[][], batchY: number[],
-  alignGrad: Grad,
-  lambda: number,
-  l2: number = 0.01
-): Grad {
-  const honest = gnormalize(lossGradient(model, batchX, batchY, l2));
-  const accumulate = gnormalize(alignGrad);
-  return gaxpy(honest, accumulate, lambda);
+function cosineGradWrtSecond(u: Grad, v: Grad): Grad {
+  const nu = gnorm(u), nv = gnorm(v);
+  if (nu < 1e-12 || nv < 1e-12) return gscale(v, 0);
+  const c = gdot(u, v) / (nu * nv);
+  return gaxpy(gscale(u, 1 / (nu * nv)), v, -c / (nv * nv));
 }
 
 /**
- * H_t = ⟨ĝ(A_t(S_t); θ_t), d_t⟩ — maximised over the batch perturbation.
- * Normalised on the left too, so the search optimises *direction* rather than
- * simply inflating the gradient's magnitude.
+ * The alignment of Eq. (7) at θ between u = ∇L(S_val; θ) and v = ∇L(P(S_T); θ): the cosine when
+ * the gradients are normalised (Algorithm 1's option, and the reference code), else the raw inner
+ * product uᵀv of Eq. (7) itself. Negative means a step on the trigger raises the validation loss.
  */
-export function accumulativeObjective(
-  model: Model,
-  batchX: number[][], batchY: number[],
-  target: Grad,
-  l2: number = 0.01
+export function alignValue(u: Grad, v: Grad, normalized: boolean): number {
+  return normalized ? cosine(u, v) : gdot(u, v);
+}
+
+/** ∂alignment/∂v (and, by symmetry, ∂/∂u with the arguments swapped). */
+function alignGradWrtSecond(u: Grad, v: Grad, normalized: boolean): Grad {
+  return normalized ? cosineGradWrtSecond(u, v) : u;
+}
+
+export function alignment(
+  m: Net, valX: number[][], valY: number[], trigX: number[][], trigY: number[], normalized = true,
 ): number {
-  return gdot(gnormalize(lossGradient(model, batchX, batchY, l2)), target);
+  return alignValue(gradFromStats(batchStats(m, valX, valY)), gradFromStats(batchStats(m, trigX, trigY)), normalized);
 }
 
 /**
- * ∇_δ of a scalar objective that depends on a batch's feature matrix,
- * by central differences — one entry per (sample, feature).
+ * G_t = ∇_θ a(u(θ), v(θ)) with u = ∇L(S_val), v = ∇L(P(S_T)). By the chain rule through the
+ * two gradients (whose Jacobians are the Hessians):
+ *   G_t = H_val · ∂a/∂u + H_P · ∂a/∂v        (raw inner product: H_val v + H_P u)
+ * — two Hessian-vector products, the second-order term Algorithm 1 differentiates.
  */
-export function batchGradient(
-  objective: (X: number[][]) => number,
-  X: number[][],
-  h: number = 1e-4
-): number[][] {
-  return X.map((row, i) =>
-    row.map((_, j) => {
-      const plus = X.map((r, k) => (k === i ? r.map((v, m) => (m === j ? v + h : v)) : r));
-      const minus = X.map((r, k) => (k === i ? r.map((v, m) => (m === j ? v - h : v)) : r));
-      return (objective(plus) - objective(minus)) / (2 * h);
-    })
+export function alignmentParamGradient(val: BatchStats, trig: BatchStats, normalized = true): { G: Grad; u: Grad; v: Grad } {
+  const u = gradFromStats(val), v = gradFromStats(trig);
+  const G = gaxpy(
+    hessVec(val, alignGradWrtSecond(v, u, normalized)),
+    hessVec(trig, alignGradWrtSecond(u, v, normalized)), 1,
   );
+  return { G, u, v };
 }
 
 /**
- * One PGD step with an L∞ trust region:
- *   δ ← Π_{‖δ‖∞ ≤ ε} ( δ + direction · α · sign(∇) )
- * `direction` is +1 to ascend the objective, −1 to descend it.
+ * The per-round target of Eq. (9):  d_t = ĝ(S_t; θ_t) + λ Ĝ_t — the honest direction plus the
+ * direction that lowers the alignment. Both unit length, per Algorithm 1's normalisation.
+ */
+export function accumulativeTarget(clean: BatchStats, G: Grad, lambda: number): { target: Grad; honest: Grad; accum: Grad } {
+  const honest = gnormalize(gradFromStats(clean));
+  const accum = gnormalize(G);
+  return { target: gaxpy(honest, accum, lambda), honest, accum };
+}
+
+/**
+ * One L∞ PGD step with the pixel box:  x ← clip_[lo,hi]( Π_{‖x − x⁰‖∞ ≤ ε}( x + dir·α·sign(∇) ) ).
+ * `dir` = +1 ascends the objective, −1 descends it.
  */
 export function pgdStep(
-  cleanX: number[][],
-  currentX: number[][],
-  gradients: number[][],
-  epsilon: number,
-  stepSize: number,
-  direction: 1 | -1 = 1
+  clean: number[][], current: number[][], grads: number[][],
+  epsilon: number, alpha: number, dir: 1 | -1, box: [number, number],
 ): number[][] {
-  return currentX.map((row, i) =>
-    row.map((val, j) => {
-      const stepped = val + direction * stepSize * Math.sign(gradients[i][j]);
-      return Math.max(cleanX[i][j] - epsilon, Math.min(cleanX[i][j] + epsilon, stepped));
-    })
-  );
+  const [lo, hi] = box;
+  return current.map((row, i) => row.map((v, j) => {
+    const stepped = v + dir * alpha * Math.sign(grads[i][j]);
+    const inBall = Math.max(clean[i][j] - epsilon, Math.min(clean[i][j] + epsilon, stepped));
+    return Math.max(lo, Math.min(hi, inBall));
+  }));
 }
 
 /**
- * Refine the accumulative batch A_t(S_t): maximise H_t inside the ε-ball.
+ * A_t(S_t): C steps of PGD ascending  H_t = ĝ(A_t(S_t); θ_t)ᵀ d_t  (Algorithm 1, "update A_t").
+ * Only the left gradient depends on the pixels; d_t is the stop-gradient target. Starts from the
+ * clean batch (Algorithm 1 initialises A_t(S_t) = S_t).
  */
-export function refineAccumulativeBatch(
-  model: Model,
-  cleanBatchX: number[][], batchY: number[],
-  target: Grad,
-  epsilon: number, steps: number, stepSize: number,
-  l2: number = 0.01
-): { X: number[][]; gradients: number[][] } {
-  let current = cleanBatchX.map(x => [...x]);
-  let gradients: number[][] = current.map(r => r.map(() => 0));
-
+export function craftAccumulativeBatch(
+  m: Net, cleanX: number[][], y: number[], target: Grad,
+  epsilon: number, steps: number, box: [number, number],
+): { X: number[][]; gradients: number[][]; objective: number } {
+  const alpha = (2 * epsilon) / steps;       // α = 2ε/C (§4; the reference's step_size)
+  let X = cleanX.map(r => [...r]);
+  let gradients: number[][] = [];
   for (let s = 0; s < steps; s++) {
-    gradients = batchGradient(
-      (X) => accumulativeObjective(model, X, batchY, target, l2),
-      current
-    );
-    current = pgdStep(cleanBatchX, current, gradients, epsilon, stepSize, 1);
+    const st = batchStats(m, X, y);
+    const g = gradFromStats(st);
+    const ng = gnorm(g);
+    if (ng < 1e-12) break;
+    // ∂(ĝᵀd)/∂g = (d − (ĝᵀd) ĝ)/‖g‖
+    const gh = gscale(g, 1 / ng);
+    const q = gscale(gaxpy(target, gh, -gdot(gh, target)), 1 / ng);
+    gradients = pixelGradient(st, q);
+    X = pgdStep(cleanX, X, gradients, epsilon, alpha, 1, box);
   }
-
-  return { X: current, gradients };
+  const objective = gdot(gnormalize(gradFromStats(batchStats(m, X, y))), target);
+  return { X, gradients, objective };
 }
 
 /**
- * Refine the poisoned trigger P(S_T): drive the alignment at θ_t as negative
- * as possible inside the ε-ball. Updated every round alongside A_t, because
- * Eq. (7) is a *joint* minimisation over P and A — accumulating against a
- * trigger you then throw away is the common way to get this wrong.
+ * P(S_T): C steps of PGD descending the alignment between u = ∇L(S_val; θ) and ∇L(P(S_T); θ) — the
+ * reference code's craft_tri, i.e. Eq. (6) solved for the current model. Warm-starts from
+ * `startX` but always projects onto the ε-ball around the CLEAN trigger S_T.
  */
-export function refineTriggerBatch(
-  model: Model,
-  cleanTriggerX: number[][], triggerY: number[],
-  currentTriggerX: number[][],
-  validX: number[][], validY: number[],
-  epsilon: number, steps: number, stepSize: number,
-  l2: number = 0.01
+export function craftTrigger(
+  m: Net, cleanX: number[][], startX: number[][], y: number[], u: Grad,
+  epsilon: number, steps: number, box: [number, number], normalized = true,
 ): number[][] {
-  let current = currentTriggerX.map(x => [...x]);
-  const validGrad = lossGradient(model, validX, validY, l2);
-
+  const alpha = (2 * epsilon) / steps;
+  let X = startX.map(r => [...r]);
   for (let s = 0; s < steps; s++) {
-    const grads = batchGradient(
-      (X) => gdot(validGrad, lossGradient(model, X, triggerY, l2)),
-      current
-    );
-    current = pgdStep(cleanTriggerX, current, grads, epsilon, stepSize, -1);
+    const st = batchStats(m, X, y);
+    const q = alignGradWrtSecond(u, gradFromStats(st), normalized);
+    X = pgdStep(cleanX, X, pixelGradient(st, q), epsilon, alpha, -1, box);
   }
+  return X;
+}
 
-  return current;
+/**
+ * Coordinates of parameter-space vectors in the plane spanned by the first two, in an orthonormal
+ * basis (e₁ ∥ a). Angles and relative lengths are exact, so the explainer can draw gradients with
+ * thousands of coordinates as honest 2-D arrows.
+ */
+export function planeCoords(a: Grad, b: Grad, ...rest: Grad[]): number[][] {
+  const e1 = gnormalize(a);
+  const perp = gaxpy(b, e1, -gdot(b, e1));
+  const e2 = gnormalize(perp);
+  return [a, b, ...rest].map(v => [gdot(v, e1), gdot(v, e2)]);
 }

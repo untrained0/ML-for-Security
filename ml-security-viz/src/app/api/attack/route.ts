@@ -11,7 +11,7 @@ import { streamAttack, type AttackRequest } from '@/server/attack';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// A 784-d MNIST task is ~10 MB of JSON; anything far beyond that is not a dataset from this app
+// Image features arrive as bytes (lib/serverAttack.ts), so even CIFAR-10 is a few MB; anything far beyond that is not a dataset from this app
 const MAX_BODY_BYTES = 256 * 2 ** 20;
 
 export async function POST(request: Request) {
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   } catch (e: any) {
     return Response.json({ error: `unreadable request body: ${e.message}` }, { status: 400 });
   }
-  if (typeof req?.algorithm !== 'string' || !req.dataset?.train?.X?.length || !req.config) {
+  if (typeof req?.algorithm !== 'string' || !(req.dataset?.train?.X?.length || req.dataset?.train?.X?.n) || !req.config) {
     return Response.json({ error: 'expected {algorithm, config, dataset: {train, valid, test}, cleanModel}' }, { status: 400 });
   }
   return new Response(streamAttack(req, request.signal), {

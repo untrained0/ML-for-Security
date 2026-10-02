@@ -197,13 +197,20 @@ export function makeBiggioGaussian() {
  *   view         PCA window for drawing high-dimensional data (engine/data/view.ts)
  *   bounds       [lo, hi] box every feature of a poisoning point is projected onto
  *   displayRange canvas extent {xMin, xMax, yMin, yMax}
- *   imageShape   the features are an image of this shape (MNIST)
+ *   imageShape   the features are an image of this shape ([28,28] MNIST, [32,32,3] CIFAR-10 channels last)
  */
 const REG_SPLIT: [number, number] = [1 / 3, 1 / 3];           // Jagielski §V: 1/3 train/valid/test
 const REG_RANGE = { xMin: -0.1, xMax: 1.1, yMin: -0.1, yMax: 1.1 };
 
 const mnistPair = (pair: [number, number]) => () =>
   import('./loaders/mnistReal').then(m => m.loadMNISTPair(pair));
+// Pang 2021: the training split is the online stream (burn-in, then the accumulative batches);
+// S_val is 500 images like the reference code's validation batch. CIFAR's 3072-d images cost 4×
+// MNIST's, so its stream and test sample are halved.
+const pangImages = (source: 'mnist' | 'cifar10', pair: [number, number]) => () =>
+  import('./loaders/images').then(m => m.loadImagePair(source, pair, source === 'mnist'
+    ? { train: 2000, valid: 500, test: 'all' }
+    : { train: 1000, valid: 500, test: 1000 }));
 const regression = (key: 'warfarin' | 'loan' | 'house') => () =>
   import('./loaders/regression').then(m => m.loadRegressionDataset(key));
 
@@ -221,9 +228,12 @@ export const DATASETS: Record<string, any> = {
   mnist98: { name: 'MNIST 9 vs 8', load: mnistPair([9, 8]), icon: '🔢', desc: 'Real MNIST, 784 raw pixels in [0,1] (Biggio 2012 §3.2)' },
   mnist40: { name: 'MNIST 4 vs 0', load: mnistPair([4, 0]), icon: '🔢', desc: 'Real MNIST, 784 raw pixels in [0,1] (Biggio 2012 §3.2)' },
 
-  // Pang et al. 2021 — real MNIST / CIFAR-10 on 2-D PCA features (the online logistic regression's input)
-  mnist:    { name: 'MNIST 7 vs 1 (PCA)', load: (n: number) => import('./loaders/images').then(m => m.loadImagePair2D('mnist', [7, 1], n)), icon: '🔢', desc: 'Real MNIST digits 7 (+1) vs 1 (−1), 2-D PCA features' },
-  cifar:    { name: 'CIFAR-10 Ship/Frog', load: (n: number) => import('./loaders/images').then(m => m.loadImagePair2D('cifar10', [8, 6], n)), icon: '🖼️', desc: 'Real CIFAR-10 ship (+1) vs frog (−1), 2-D PCA features' },
+  // Pang et al. 2021 §4 — real MNIST / CIFAR-10 in pixel space: the victim and the ε-bounded
+  // perturbations both work on the raw [0,1] pixels; `view` only draws them
+  pangMnist35: { name: 'MNIST 3 vs 5', load: pangImages('mnist', [3, 5]), icon: '🔢', desc: 'Real MNIST 3 (+1) vs 5 (−1), 784 raw pixels: 2000-image stream, 500 S_val, full test set' },
+  pangMnist71: { name: 'MNIST 7 vs 1', load: pangImages('mnist', [7, 1]), icon: '🔢', desc: 'Real MNIST 7 (+1) vs 1 (−1), 784 raw pixels — nearly separable, so the hardest to break' },
+  pangCifarShipFrog: { name: 'CIFAR-10 Ship vs Frog', load: pangImages('cifar10', [8, 6]), icon: '🖼️', desc: 'Real CIFAR-10 ship (+1) vs frog (−1), 32×32×3 raw pixels: 1000-image stream, 500 S_val, 1000 test' },
+  pangCifarPlaneBird: { name: 'CIFAR-10 Plane vs Bird', load: pangImages('cifar10', [0, 2]), icon: '🖼️', desc: 'Real CIFAR-10 airplane (+1) vs bird (−1), 32×32×3 raw pixels: 1000-image stream, 500 S_val, 1000 test' },
 
   // Regression: synthetic 1-D illustrations
   linearReg:    { name: 'Linear',    fn: makeLinearRegression,    icon: '📈', desc: 'y = 2x + 1 + ε', isRegression: true, split: REG_SPLIT, displayRange: REG_RANGE },

@@ -192,6 +192,15 @@ export default function Canvas({ currentState }: { currentState?: any }) {
     if (!attackTrace || attackTrace.length === 0 || currentIteration === 0) return [];
 
     const last = Math.min(currentIteration, attackTrace.length - 1);
+    // Per-batch perturbations (Pang 2021): each frame poisons fresh images, so the "trajectory" of
+    // a point is the segment from the clean training image to its perturbed version
+    const sources: number[] | undefined = attackTrace[last].poisonSource;
+    if (sources && dataset?.train) {
+      return attackTrace[last].poisonX.map((pt: number[], p: number) => {
+        const a = disp(dataset.train.X[sources[p]]), b = disp(pt);
+        return [{ x: a[0], y: a[1] }, { x: b[0], y: b[1] }];
+      });
+    }
     const numPoison = attackTrace[last].poisonX.length;
     const trajectories: {x: number, y: number}[][] = Array.from({ length: numPoison }, () => []);
 
@@ -205,7 +214,7 @@ export default function Canvas({ currentState }: { currentState?: any }) {
     }
 
     return trajectories;
-  }, [attackTrace, currentIteration, view, isRegression]);
+  }, [attackTrace, currentIteration, view, isRegression, dataset]);
 
   // Precompute heatmap colors
   const heatmapCells = useMemo(() => {
@@ -457,7 +466,7 @@ export default function Canvas({ currentState }: { currentState?: any }) {
                   strokeDasharray={`${4 * invK},${4 * invK}`}
                   className="opacity-50"
                 />
-                {/* where the point started: a clone of an attacked-class point (Biggio §2.3) */}
+                {/* where the point started: a clone of an attacked-class point (Biggio §2.3), or the clean image (Pang) */}
                 <circle cx={sx0} cy={sy0} r={3 * invK} fill="none" stroke="var(--data-poison)" strokeWidth={1.2 * invK} className="opacity-70" />
               </g>
             );

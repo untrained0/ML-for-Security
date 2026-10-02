@@ -31,6 +31,20 @@ function replacer(_key: string, v: any) {
   return ArrayBuffer.isView(v) && !(v instanceof DataView) ? Array.from(v as any) : v;
 }
 
+/** Undo lib/serverAttack.ts's packPixels: base64 bytes back to rows of k/255. */
+function unpackPixels(X: any): number[][] {
+  if (!X || Array.isArray(X) || typeof X.u8 !== 'string') return X;
+  const bytes = Buffer.from(X.u8, 'base64');
+  const { n, d } = X;
+  if (bytes.length !== n * d) throw new Error('packed pixels have the wrong size');
+  return Array.from({ length: n }, (_, i) => Array.from(bytes.subarray(i * d, (i + 1) * d), k => k / 255));
+}
+
+function unpackDataset(ds: any) {
+  for (const name of ['train', 'valid', 'test']) if (ds?.[name]) ds[name].X = unpackPixels(ds[name].X);
+  return ds;
+}
+
 export function streamAttack(req: AttackRequest, signal: AbortSignal): ReadableStream<Uint8Array> {
   const gz = zlib.createGzip({ level: 6 });
   // Stop the attack when the request is aborted OR the response stream is torn down (Next
@@ -59,7 +73,7 @@ export function streamAttack(req: AttackRequest, signal: AbortSignal): ReadableS
     const alg = getAlgorithm(req.algorithm);
     send({ type: 'meta', backend: info.backend, device: info.device });
     alg.runAttack(
-      req.dataset, req.cleanModel, req.config,
+      unpackDataset(req.dataset), req.cleanModel, req.config,
       (frame) => { frames++; send({ type: 'frame', frame }); },
       () => { send({ type: 'done', ms: Math.round(performance.now() - started), frames }); close(); },
       (message) => { send({ type: 'error', message }); close(); },

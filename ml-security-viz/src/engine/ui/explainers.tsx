@@ -51,7 +51,7 @@ export const EXPLAINERS: Record<string, { title: string; content: React.ReactNod
     title: 'Attack Regularization (β)',
     content: (
       <div className="flex flex-col gap-3">
-        <p>The <strong className="text-primary">Attack Regularization (β)</strong> ensures the poison points don't drift too far from the data distribution.</p>
+        <p>The <strong className="text-primary">Attack Regularization (β)</strong> ensures the poison points don&apos;t drift too far from the data distribution.</p>
         <div className="bg-secondary p-3 rounded-md border border-border-subtle font-mono text-sm">
           <MathEq math="L_{attack} = L_{val}(D_{val}) - \beta \sum_{x \in D_p} \|x - \text{center}\|^2" />
         </div>
@@ -98,7 +98,7 @@ export const EXPLAINERS: Record<string, { title: string; content: React.ReactNod
         <div className="bg-secondary p-3 rounded-md border border-border-subtle font-mono text-sm flex justify-center">
           <MathEq math="\text{MSE} = \frac{1}{n} \sum_{i=1}^n (y_i - \hat{y}_i)^2" />
         </div>
-        <p>The attacker's ultimate goal in this simulator is to <strong>maximize</strong> the validation MSE, forcing the model to make terrible predictions on clean, unseen data.</p>
+        <p>The attacker&apos;s ultimate goal in this simulator is to <strong>maximize</strong> the validation MSE, forcing the model to make terrible predictions on clean, unseen data.</p>
       </div>
     )
   },
@@ -111,7 +111,7 @@ export const EXPLAINERS: Record<string, { title: string; content: React.ReactNod
         <div className="bg-secondary p-3 rounded-md border border-border-subtle font-mono text-[11px] overflow-x-auto">
           <MathEq math="\nabla_{x_c} W = - (\nabla_{ww}^2 L_{tr})^{-1} \nabla_{w x_c}^2 L_{tr}" />
         </div>
-        <p>This beautiful math trick allows the attacker to differentiate "through" the training process itself, finding exactly how moving a poison point $x_c$ changes the final weights $W$!</p>
+        <p>This beautiful math trick allows the attacker to differentiate &ldquo;through&rdquo; the training process itself, finding exactly how moving a poison point $x_c$ changes the final weights $W$!</p>
       </div>
     )
   }
