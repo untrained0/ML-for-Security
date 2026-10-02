@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import useStore from '@/store/useStore';
-import { getAlgorithm } from '@/engine/architectures';
+import { findAlgorithm } from '@/engine/architectures';
 
 export default function GuidedTour() {
   const { activeAlgorithm } = useStore();
@@ -52,8 +52,10 @@ export default function GuidedTour() {
     }
   ];
 
-  const steps = getAlgorithm(activeAlgorithm).tourSteps
-    ?? (activeAlgorithm === 'biggio2012' ? svmSteps : regressionSteps);
+  // The tours describe the geometric workspace; a view module (or an unknown key) has none
+  const alg = findAlgorithm(activeAlgorithm);
+  if (!alg) return null;
+  const steps = alg.tourSteps ?? (activeAlgorithm === 'biggio2012' ? svmSteps : regressionSteps);
 
   if (!isOpen) {
     return (
