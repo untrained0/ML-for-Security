@@ -68,5 +68,23 @@ const MLP: MathPanelLabels = {
   },
 };
 
-export const pangMathPanel = (config: Record<string, any>): MathPanelLabels =>
-  (config.victim ?? 'mlp') === 'mlp' ? MLP : LOGREG;
+/** Federated setting (§3.3): the objective is Eq. 10's cosine and the updates are gradients. */
+const FEDERATED: Partial<MathPanelLabels> = {
+  objective: {
+    symbol: '\\cos(\\sigma\\nabla\\mathcal{L}_{T}, \\nabla\\mathcal{L}_{val})',
+    tooltip: 'Eq. 10 alignment, normalised as in the reference code: the cosine between the trigger gradient (reversed, σ = −1, for the poisoned trigger) and ∇L(S_val). The poisoners drive it down: negative means one trigger round raises the validation loss.',
+    worse: 'lower',
+  },
+  gradientLabel: '‖Submitted update‖',
+  equations: [
+    { title: 'Server Update (Eq. 11)', body: 'θₜ₊₁ = θₜ − β Σₙ Aₜ(Gₜⁿ)   (SGD momentum, after clipping)' },
+    { title: 'Accumulative Objective (Eq. 10)', body: 'min_{P,A} ∇L(S_val; A(θ_T))ᵀ Σₙ P(G_Tⁿ)  s.t.  L(S_val; A(θ_T)) ≤ L(S_val; θ_T) + γ' },
+    { title: 'Accumulative Update (Eq. 12)', body: 'Σₙ Aₜ(Gₜⁿ) = Σₙ Gₜⁿ + λ · ∇_θ(∇L(S_val; θₜ)ᵀ Σₙ P(G_Tⁿ))' },
+    { title: 'Reverse Trigger (Eq. 13)', body: 'P(G_T) = −∇L(S_T; θ_T):  max_A ∇L(S_T; A(θ))ᵀ ∇L(S_val; A(θ))' },
+  ],
+};
+
+export const pangMathPanel = (config: Record<string, any>): MathPanelLabels => {
+  const base = (config.victim ?? 'mlp') === 'mlp' ? MLP : LOGREG;
+  return (config.setting ?? 'online') === 'federated' ? { ...base, ...FEDERATED } : base;
+};
