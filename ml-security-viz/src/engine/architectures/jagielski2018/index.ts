@@ -17,6 +17,7 @@ const jagielski2018: AlgorithmModule = {
   name: 'Regression Poisoning',
   paper: 'https://arxiv.org/abs/1804.00308',
   paperShort: 'Jagielski et al. 2018',
+  category: 'poisoning',
   modelType: 'regression',
 
   datasets: ['warfarin', 'loan', 'house', 'linearReg', 'quadraticReg', 'sinReg'],

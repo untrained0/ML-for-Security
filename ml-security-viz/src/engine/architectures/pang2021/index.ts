@@ -27,6 +27,7 @@ const pang2021: AlgorithmModule = {
   name: 'Accumulative Poisoning',
   paper: 'https://arxiv.org/abs/2106.09993',
   paperShort: 'Pang et al. 2021',
+  category: 'poisoning',
   modelType: 'classification',
   modelLabel: (config) => `${(config.setting ?? 'online') === 'federated' ? 'Federated' : 'Online'} ${(config.victim ?? 'mlp') === 'mlp' ? 'Neural Network' : 'Logistic Regression'}`,
 

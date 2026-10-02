@@ -81,6 +81,8 @@ export interface AlgorithmModule {
   name: string;
   paper: string;
   paperShort: string;
+  /** Header tab this attack is listed under — a key of ATTACK_CATEGORIES (categories.ts). */
+  category: string;
   modelType: 'classification' | 'regression';
 
   /** Config schema — drives the ControlPanel dynamically */
@@ -235,17 +237,71 @@ export interface ExplainerStep {
   visual?: 'alignment' | 'accumulation' | 'trigger' | 'online-step';
 }
 
-/** Global registry */
+/**
+ * A non-geometric attack: its results are not points on the 2-D canvas (LLM attacks first), so the
+ * page renders a dedicated React view for it instead of the geometric workspace (canvas, control
+ * panel, timeline). This side is React-free; `view` names a component registered with
+ * `registerView` in src/views/registry.ts, so several modules may share one view.
+ */
+export interface ViewModule {
+  kind: 'view';
+  key: string;
+  name: string;
+  paper: string;
+  paperShort: string;
+  /** Header tab — a key of ATTACK_CATEGORIES (categories.ts). */
+  category: string;
+  /** Key of the view component (src/views/registry.ts). */
+  view: string;
+  description?: string;
+}
+
+/** One row of the header's attack list: either kind of module. */
+export interface AttackEntry {
+  key: string;
+  name: string;
+  paper: string;
+  paperShort: string;
+  category: string;
+  kind: 'geometric' | 'view';
+}
+
+/** Global registries. Keys are unique across both — the store's `activeAlgorithm` is one of them. */
 const ALGORITHM_REGISTRY: Record<string, AlgorithmModule> = {};
+const VIEW_MODULE_REGISTRY: Record<string, ViewModule> = {};
+
+function warnIfTaken(key: string, registering: string) {
+  if (ALGORITHM_REGISTRY[key] || VIEW_MODULE_REGISTRY[key]) {
+    console.warn(`Duplicate attack key "${key}" (registering ${registering}): the later registration replaces the earlier one`);
+  }
+}
 
 export function registerAlgorithm(mod: AlgorithmModule) {
+  warnIfTaken(mod.key, 'an algorithm');
+  delete VIEW_MODULE_REGISTRY[mod.key];
   ALGORITHM_REGISTRY[mod.key] = mod;
 }
 
+export function registerViewModule(mod: ViewModule) {
+  warnIfTaken(mod.key, 'a view module');
+  delete ALGORITHM_REGISTRY[mod.key];
+  VIEW_MODULE_REGISTRY[mod.key] = mod;
+}
+
+/** The geometric module for a key. Throws for anything else — view modules have no AlgorithmModule. */
 export function getAlgorithm(key: string): AlgorithmModule {
   const mod = ALGORITHM_REGISTRY[key];
-  if (!mod) throw new Error(`Unknown algorithm: ${key}`);
+  if (!mod) {
+    throw new Error(VIEW_MODULE_REGISTRY[key]
+      ? `"${key}" is a view module, not a geometric algorithm (use getAttack / getViewModule)`
+      : `Unknown algorithm: ${key}`);
+  }
   return mod;
+}
+
+/** The geometric module for a key, or undefined (a view module or an unknown key). */
+export function findAlgorithm(key: string): AlgorithmModule | undefined {
+  return ALGORITHM_REGISTRY[key];
 }
 
 export function getAllAlgorithms(): AlgorithmModule[] {
@@ -254,4 +310,30 @@ export function getAllAlgorithms(): AlgorithmModule[] {
 
 export function getAlgorithmKeys(): string[] {
   return Object.keys(ALGORITHM_REGISTRY);
+}
+
+export function getViewModule(key: string): ViewModule | undefined {
+  return VIEW_MODULE_REGISTRY[key];
+}
+
+export function getAllViewModules(): ViewModule[] {
+  return Object.values(VIEW_MODULE_REGISTRY);
+}
+
+const toEntry = (m: AlgorithmModule | ViewModule, kind: AttackEntry['kind']): AttackEntry =>
+  ({ key: m.key, name: m.name, paper: m.paper, paperShort: m.paperShort, category: m.category, kind });
+
+/** Every registered attack, geometric and view, in registration order within each kind. */
+export function getAttacks(): AttackEntry[] {
+  return [
+    ...getAllAlgorithms().map(m => toEntry(m, 'geometric')),
+    ...getAllViewModules().map(m => toEntry(m, 'view')),
+  ];
+}
+
+export function getAttack(key: string): AttackEntry | undefined {
+  const g = ALGORITHM_REGISTRY[key];
+  if (g) return toEntry(g, 'geometric');
+  const v = VIEW_MODULE_REGISTRY[key];
+  return v ? toEntry(v, 'view') : undefined;
 }
