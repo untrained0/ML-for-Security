@@ -76,7 +76,7 @@ const jagielski2018: AlgorithmModule = {
     },
     {
       key: 'outerIters', label: 'Max Iterations', type: 'range', section: 'attack',
-      min: 5, max: 50, step: 1, tooltip: 'Outer iterations of Algorithm 1 (stops earlier when |Δw| < 1e-5)'
+      min: 5, max: 50, step: 1, tooltip: 'Outer iterations of Algorithm 1 (stops earlier when |Δw| < 1e-5, from iteration 15 on)'
     },
   ],
 

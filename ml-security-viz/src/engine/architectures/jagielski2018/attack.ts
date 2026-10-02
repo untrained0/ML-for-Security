@@ -34,6 +34,9 @@ export interface RegressionAttackParams {
   cleanTheta: number[];
 }
 
+/** Algorithm 1's |w(i) − w(i−1)| < ε test only applies from this iteration on (authors' code). */
+const MIN_ITERS = 15;
+
 /** Number of poisoning points for a poisoning rate α/(1+α) = p/(n+p). */
 export const poisonCount = (n: number, rate: number) => Math.max(1, Math.round((rate * n) / (1 - rate)));
 
@@ -190,6 +193,7 @@ export function* regressionAttack(p: RegressionAttackParams): Generator<TraceFra
     for (let it = 1; it <= p.maxIter; it++) {
       gradients = [];
       gradientNorms = [];
+      const startX = poisonX.map(x => [...x]), startY = [...poisonY];
 
       for (let c = 0; c < P; c++) {                           // line 6: one point at a time
         const row = n + c;
@@ -223,11 +227,27 @@ export function* regressionAttack(p: RegressionAttackParams): Generator<TraceFra
       }
 
       fit.refit();                                              // clear rank-one update drift
-      const w = W();                                            // line 9
+      let w = W();                                              // line 9
+      if (w < wPrev) {
+        // The one-hot snap can lose what the line searches gained: as the authors' code does
+        // (gd_poisoners.py, `poison_data`), keep the previous iteration's points instead
+        for (let c = 0; c < P; c++) {
+          poisonX[c] = startX[c];
+          poisonY[c] = startY[c];
+          fit.setRow(n + c, startX[c], startY[c]);
+        }
+        fit.refit();
+        w = W();
+      }
+      // App. C: decay η when an iteration makes no progress. That includes no change at all: when
+      // η overshoots every point's first line-search step (OLS on one-hot data, whose W is sharp),
+      // each search is undone and W stays put — which is not convergence.
+      if (!(w > wPrev)) eta *= p.beta;
       yield frame(it, w);
 
-      if (Math.abs(w - wPrev) < p.eps) break;                   // line 11
-      if (w <= wPrev) eta *= p.beta;                            // App. C: decay η on no progress
+      // line 11, from iteration 15 on as in the authors' code (`count >= 15`): earlier, an
+      // iteration without progress means η is still too large, not that the attack has converged
+      if (it >= MIN_ITERS && Math.abs(w - wPrev) < p.eps) break;
       wPrev = w;
     }
   } finally {

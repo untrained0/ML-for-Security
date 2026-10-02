@@ -122,6 +122,7 @@
 | 7.6 | ~~Neural-network victim~~ ✅ | `pang2021/model.ts` — MLP (1–3 hidden layers, ReLU/tanh) beside logistic regression; exact HVPs and pixel gradients via the R-operator |
 | 7.7 | ~~Paper's online optimiser~~ ✅ | SGD momentum 0.9 carried into the trigger step, weight-momentum trick (Table 1), C up to 100 |
 | 7.8 | ~~Federated setting (Algorithm 2)~~ ✅ | `pang2021/federated.ts` — gradient-level poisoners, server clipping, direct-poisoner baseline; measured vs Tables 3–6 |
+| 7.9 | ~~Federated non-reproduction: ablation + reference ResNet-18~~ ✅ | BN / K-class / S_val / T ablation on the MLP (no collapse; `scripts/pang_ablation.ts`); the authors' code with ResNet-18 reproduces Table 3's collapse (`docs/data/pang_reference_resnet_2026-09-30/`) |
 | 7.6 | ~~Extend TraceFrame~~ ✅ | Phase, batchIndex, perturbationNorm, secrecy, drift |
 
 ---
