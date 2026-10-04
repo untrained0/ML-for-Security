@@ -153,4 +153,5 @@
 | 9.5 | Web Worker migration for Pang 2021 | Move computation off main thread |
 | 9.6 | ~~Attack-category tabs + non-geometric views~~ ✅ | `categories.ts` (poisoning, evasion), `ViewModule` + `src/views/` registry, `GeometricWorkspace` / `ViewWorkspace`, header tab bar — step 1 of LLM attacks in the app |
 | 9.7 | ~~First LLM view: Wan et al. 2023 replay~~ ✅ | `wan2023` view module + `src/views/llm-poisoning/` (poison construction, attack over epochs, example browser, comparisons) over the static export in `public/llm/wan2023/`; `npm run sync:llm-export` verifies it — step 3 of LLM attacks in the app |
+| 9.8 | ~~"Try it live" panel + `/api/llm` proxy~~ ✅ (mock-verified; real-service check pending) | Panel (e) of `llm-poisoning`, server-side proxy to the DEC-008 inference service, dev mock `npm run mock:llm` — step 4 of LLM attacks in the app |
 

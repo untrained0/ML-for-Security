@@ -13,7 +13,8 @@
     "build:cuda": "node scripts/build_cuda.mjs",
     "bench:compute": "tsx scripts/bench_compute.ts",
     "ablation:pang": "tsx scripts/pang_ablation.ts",
-    "sync:llm-export": "node scripts/sync_llm_export.mjs"
+    "sync:llm-export": "node scripts/sync_llm_export.mjs",
+    "mock:llm": "node scripts/mock_llm_infer.mjs"
   },
   "dependencies": {
     "d3": "^7.9.0",

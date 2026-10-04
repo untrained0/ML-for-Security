@@ -288,6 +288,15 @@ Wan et al. 2023 (LLM instruction-tuning poisoning) is the first view module, and
 - **View**: `src/views/llm-poisoning/` — `types.ts` mirrors the schema; `data.ts` fetches the small files on mount and checks `schema`/`schema_version`, while the large `predictions.json` is fetched only when a panel asks for it (`usePredictions(url, enabled)`); one file per panel. The view is generic over any module whose `dataUrl` holds a `wan2023-llm-trace` export, so another LLM poisoning attack exported in that schema needs only a new module folder and its data.
 - **Rules it follows**: numbers come from the export as-is — derive only what the schema defines (here: label probabilities normalised from log-probs), never recompute an aggregate differently; claims in the text cite the paper (§, Fig., Table) and say n; text from sensitive (toxicity) tasks is blurred until the reader shows it; semantic tokens only, and Recharts colours from `useThemeTokens()`.
 
+#### Live inference ("Try it live")
+
+The view's panel (e) scores new text with real checkpoints served by a separate Python service in the thesis repository (DEC-008: `serve/`, 127.0.0.1:8765, started on demand in tmux `llminfer`). The pattern for any view that talks to an external model service:
+
+- **The browser never calls the service.** `src/app/api/llm/[...path]/route.ts` forwards exactly the service's endpoints (here GET `health`, `models`, `tasks`; POST `score`) to `LLM_INFER_URL` (default `http://127.0.0.1:8765`) and 404s everything else. It validates the request first (ids against the service's own `/v1/models`, sizes), applies timeouts (long only when a model must be loaded), queues requests for a one-at-a-time service, and turns an unreachable service into `503 {error: 'live inference unavailable'}`.
+- **No proxy for localhost.** `src/server/llmInfer.ts` uses `node:http`, which never reads `HTTP(S)_PROXY`, rather than `fetch`.
+- **Degrade, don't break.** When the service is down the panel shows a notice with the command to start it; every other panel keeps working from the static export.
+- **Develop against the mock.** `npm run mock:llm` (`scripts/mock_llm_infer.mjs`, dev-only, never imported by the app) serves API v1 on :8765 with simulated lazy loading, busy 503s and validation; `--score-status 503` / `413` forces error paths, `--load-ms N` sets the model-load delay. For a curated example's exact text it returns the exported `final_logprobs`, which is what the real service must reproduce (to 1e-3).
+
 ---
 
 ## How to Add a New Dataset
