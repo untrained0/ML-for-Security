@@ -159,7 +159,8 @@ export default function LivePanel({ data, recipe, setRecipe, showSensitive }: {
           <p className="text-muted-foreground text-xs">
             To start the service (it needs the GPU; one request at a time), in the thesis repository:
           </p>
-          <pre className="data-value text-xs bg-secondary rounded-md px-3 py-2 overflow-x-auto">{`cd /home/soham/Soham/Poisoning_LLM\ntmux new -s llminfer 'bash serve/run.sh'`}</pre>
+          <pre className="data-value text-xs bg-secondary rounded-md px-3 py-2 overflow-x-auto">{`cd /home/soham/Soham/Poisoning_LLM\ntmux new-session -d -s llminfer "bash serve/run.sh"\n# if the llminfer session already exists:\ntmux send-keys -t llminfer 'bash serve/run.sh' Enter`}</pre>
+          <p className="text-muted-foreground text-[11px]">Stop it with <code className="data-value">tmux send-keys -t llminfer C-c</code> when done — that releases its GPU memory.</p>
           <p className="text-muted-foreground text-[11px]">Reason: {service.error}</p>
           <button type="button" onClick={() => void check()}
             className="self-start px-3 py-1.5 rounded-md text-xs font-medium bg-secondary border border-border text-foreground hover:border-primary cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
@@ -287,7 +288,7 @@ export default function LivePanel({ data, recipe, setRecipe, showSensitive }: {
                         <span className={`block h-full ${targets(resultTask).includes(label) ? 'bg-attack' : 'bg-clean'}`} style={{ width: `${(p[i] * 100).toFixed(1)}%` }} />
                       </span>
                       <span className="w-12 text-right data-value">{fmt(p[i], 3)}</span>
-                      <span className="w-14 text-right data-value text-muted-foreground" title="log-prob (summed over the label's tokens)">{lp[i].toFixed(3)}</span>
+                      <span className="w-14 text-right data-value text-muted-foreground" title="log-prob (summed over the label's tokens)">{(Math.abs(lp[i]) < 5e-4 ? 0 : lp[i]).toFixed(3)}</span>
                     </div>
                   ))}
                   <p className="text-xs">
