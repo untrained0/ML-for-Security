@@ -99,6 +99,7 @@ All JSON is UTF-8, without indentation (except `manifest.json`).
 - `input`: the test input text (the *instance* only; the model also saw the task definition and 2 demonstration examples),
   with `input_truncated`, `input_chars_total`, `trigger_spans`, `trigger_count_total`.
 - `label_space`, `target_labels`, `true_label`.
+- `prompt_hash`: sha256 prefix of the fixed prompt used for `final_logprobs` (see below).
 - `pred_by_run[run]`: a 10-character string. Character *e − 1* is the digit index into `label_space` of that run's
   prediction at epoch *e* (from `generations.txt`).
 - `final_logprobs[run]`: per-label log-probability (natural log, summed over the label's tokens) under that run's
@@ -129,21 +130,26 @@ examples are poisoned in every epoch. `max_chars` = 1500. Each `examples[]` entr
 
 ## Final-checkpoint log-probs (`rescore`)
 
-Each run's final checkpoint re-scored the 528 curated examples. The model, eval code path, bf16 compute and
-rows-per-forward are the same as the original evaluation.
+Each run's final checkpoint re-scored the 528 curated examples with `src/llm_scoring.py`. The live inference service
+(`serve/`) uses the same code, so it reproduces these numbers. Model, bf16 compute and the log-prob function are the
+same as in the original evaluation. Two things are fixed on purpose:
 
-**One difference:** prompt construction. The upstream prompt builder (`DataCollatorForNI`) picks and shuffles the two
-demonstration examples with Python's unseeded global `random`, so every original evaluation drew new demonstrations,
-and they were not logged. The rescore fixes them per example with `random.seed(int(sha256(instance_id)[:8], 16))`, which
-makes it reproducible (two runs gave identical files).
+- **Demonstrations are fixed per task.** The upstream prompt builder (`DataCollatorForNI`) picks and shuffles the two
+  demonstration examples with Python's unseeded global `random`, so every original evaluation drew new demonstrations,
+  and they were not logged. The rescore seeds `random` with `int(sha256(task)[:8], 16)` right before building each
+  prompt. Every input of a task therefore gets the same demonstrations, as the paper describes ("constant throughout
+  training and inference"). The exception is that the collator still drops demonstrations that would push the prompt
+  past 1024 tokens (some long IMDb/Yelp reviews keep 1 or 0).
+- **Each input is scored alone,** in chunks of 4 (prompt, label) rows padded by repeating the last row. The tensor
+  shapes, and so the bf16 numerics, then depend only on that input. Scores shift by up to a few hundredths of a nat when
+  the padding length changes, and this rule keeps them reproducible.
 
-So `final_logprobs` is "final checkpoint, fixed prompt". Its argmax agrees with the final-epoch prediction in
-`pred_by_run` on about 93 % of examples, and `agreement_with_final_generations` reports it per run. That agreement
-measures sensitivity to the demonstration examples; it is not a code-equality check. `build` only requires ≥ 85 %, to
-catch gross errors such as a wrong checkpoint or misaligned labels.
-
-The paper describes the demonstrations as constant throughout training and inference. In this code they are not; the
-inherited deviation is recorded in `docs/experiments.md`.
+`examples[].prompt_hash` is the first 16 hex characters of sha256 of the exact prompt string fed to the model; the
+service returns the same hash. `final_logprobs` therefore means "final checkpoint, fixed per-task prompt". Its argmax
+agrees with the final-epoch prediction in `pred_by_run` (random demonstrations) on about 90 % of examples, and
+`summary.rescore.agreement_with_final_generations` reports this per run. That agreement measures sensitivity to the
+demonstrations; it is not a code-equality check, and `build` only requires ≥ 85 % to catch gross errors. The
+deviation from the paper is recorded in `docs/experiments.md`.
 
 ## Integrity (asserted by `build`; results in `summary.integrity`)
 
@@ -162,6 +168,7 @@ inherited deviation is recorded in `docs/experiments.md`.
 5. **Poison data:** exactly 100 rows differ between `poison_train.jsonl` and `baseline_train.jsonl` in each epoch, with
    the same ids in every epoch. Each poisoned row has the trigger and the positive label, and its pool original has the
    negative label.
-6. **Rescore:** each run's final checkpoint was used, with fixed prompts, and the log-probs are finite. Agreement with
+6. **Rescore:** each run's final checkpoint was used, with the current prompt scheme, the same prompt for every run,
+   and finite log-probs. Agreement with
    generations is ≥ 85 % (see above).
 7. **Size:** the total export is under 10 MB.

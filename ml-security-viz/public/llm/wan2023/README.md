@@ -8,7 +8,9 @@ runs in the app: the view replays these files.
   770M with the 3B recipe; 3B Adafactor batch 4) × poisoned / clean × 3 seeds, 10 epochs each, on one RTX 4090.
 - **Schema**: `wan2023-llm-trace` v1 — see `SCHEMA.md` here (copied verbatim from the export).
 - **Source**: `/home/soham/Soham/Poisoning_LLM/exports/wan2023/`, written by `scripts/export_viz_trace.py` in that
-  repository at code commit `c3e8f54` (export commits `c3e8f54` + `8346c71`). The experiments and findings are in its
+  repository at code commit `afe93ee` (export first written at `c3e8f54` + `8346c71`; regenerated at `5fa001d` with the
+  shared scoring module, which changed only `final_logprobs` — now a fixed per-task prompt, identical to the live
+  inference service — and added `prompt_hash` per example). The experiments and findings are in its
   `docs/experiments.md` and `docs/project_state.md` (findings 11–13).
 - **Integrity**: `manifest.json` lists the byte size and sha256 of every file. Copy or refresh with
   `npm run sync:llm-export -- <export-dir>`, which verifies every file before and after copying and fails on any
