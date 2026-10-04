@@ -151,4 +151,5 @@
 | 9.3 | Label-flip + evasion attacks | Lightweight attack modules |
 | 9.4 | Defense visualizations | TRIM, RONI overlays |
 | 9.5 | Web Worker migration for Pang 2021 | Move computation off main thread |
+| 9.6 | ~~Attack-category tabs + non-geometric views~~ ✅ | `categories.ts` (poisoning, evasion), `ViewModule` + `src/views/` registry, `GeometricWorkspace` / `ViewWorkspace`, header tab bar — step 1 of LLM attacks in the app |
 

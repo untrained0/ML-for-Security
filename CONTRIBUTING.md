@@ -41,19 +41,26 @@ src/
 ├── components/    # React UI components
 ├── engine/        # All computation (algorithms, data, math)
 │   ├── architectures/   # ★ ATTACK MODULES — one folder per paper
-│   │   ├── registry.ts  # Core interface + global registry
+│   │   ├── registry.ts  # AlgorithmModule / ViewModule interfaces + registries
+│   │   ├── categories.ts # Attack categories = the header tabs (poisoning, evasion)
 │   │   ├── index.ts     # Barrel file — import all modules here
 │   │   ├── biggio2012/  # SVM Poisoning
 │   │   ├── jagielski2018/ # Regression Poisoning
 │   │   └── pang2021/    # Accumulative Poisoning (Online Learning)
 │   ├── data/            # Datasets + loaders
 │   └── linalg.ts        # Matrix operations
+├── views/         # React views of non-geometric attacks (registry.ts + one folder per view)
 └── store/         # Zustand state management
 ```
 
 ### Key Design Pattern: Algorithm Registry
 
 Every attack is a self-contained `AlgorithmModule` registered via `registerAlgorithm()`. The UI is fully generic — it reads `configSchema` to render controls and `TraceFrame` to render visualizations.
+
+Attacks come in two kinds, and every one belongs to a **category** (a header tab):
+
+- **Geometric** — an `AlgorithmModule`: its results are points and boundaries on the 2-D canvas, with the control panel, timeline and math panel around it (everything below).
+- **Non-geometric** — a `ViewModule`: its results are something else (LLM attacks first), so it brings its own React view, which replaces the whole workspace below the header. See [How to Add a Non-Geometric Attack View](#how-to-add-a-non-geometric-attack-view).
 
 ---
 
@@ -132,6 +139,7 @@ const yourpaper2024: AlgorithmModule = {
   name: 'Your Attack Name',
   paper: 'https://arxiv.org/abs/XXXX.XXXXX',
   paperShort: 'Author et al. 2024',
+  category: 'poisoning',       // header tab: a key of ATTACK_CATEGORIES (see "Choosing a category")
   modelType: 'classification', // or 'regression'
 
   datasets: ['gaussian', 'moons'], // Which datasets this algorithm supports
@@ -208,6 +216,67 @@ explainerSteps: yourExplainerSteps,
 ```bash
 npm run build  # Must pass with zero errors
 ```
+
+---
+
+## Choosing a Category
+
+Every attack declares `category`, the header tab it is listed under. The categories live in `src/engine/architectures/categories.ts`:
+
+| key | label | for |
+|---|---|---|
+| `poisoning` | Poisoning | training-time attacks: corrupting the data (or updates) the model learns from |
+| `evasion` | Evasion | test-time attacks: perturbing inputs to a trained model |
+
+A tab appears only once at least one registered attack uses its category, and the header's attack dropdown lists only the attacks of the active tab. The active tab is derived from the active attack; clicking a tab reopens the attack last used in it (`lastAttackByCategory` in the store), else the first. An unknown key does not break the app — it logs a warning and shows a title-cased tab — but declare it properly instead.
+
+### Adding a category
+
+Add one entry to `ATTACK_CATEGORIES` in `categories.ts` — `{ key, label, order, description }`; `order` sets the tab position and `description` is the tab's tooltip. Only add a category once an attack needs it: empty categories are hidden anyway.
+
+---
+
+## How to Add a Non-Geometric Attack View
+
+For an attack whose output is not points on the canvas (e.g. an LLM poisoning attack: prompts, generations, metrics). It has two halves, each one folder plus one import line.
+
+### 1. Register a `ViewModule` (engine side, no React)
+
+```typescript
+// src/engine/architectures/yourllmattack/index.ts
+import { registerViewModule } from '../registry';
+
+registerViewModule({
+  kind: 'view',
+  key: 'yourllmattack',              // unique across ALL attacks (geometric and view)
+  name: 'Your LLM Attack',
+  paper: 'https://arxiv.org/abs/XXXX.XXXXX',
+  paperShort: 'Author et al. 2025',
+  category: 'poisoning',
+  view: 'llm-trace',                 // key of the React view below; several modules may share one
+  description: 'One line for tooltips',
+});
+```
+
+and one line in `src/engine/architectures/index.ts`: `import './yourllmattack';`
+
+### 2. Register the view component (UI side)
+
+```tsx
+// src/views/llm-trace/index.tsx
+'use client';
+import { registerView, type ViewProps } from '../registry';
+
+function LlmTraceView({ module }: ViewProps) {
+  return <div className="p-6 text-foreground">{module.name}</div>;  // semantic tokens only
+}
+
+registerView('llm-trace', LlmTraceView);
+```
+
+and one line in `src/views/index.ts`: `import './llm-trace';`
+
+The page renders the view in place of the geometric workspace (canvas, control panel, timeline, explainer, exports), so none of their effects — dataset generation, training, compute polling — run while it is active. If the module names a view that is not registered, the page says so. `getAlgorithm()` stays geometric-only: code that may see any attack key uses `getAttack(key)` (kind, name, category) or `findAlgorithm(key)` (undefined for a view module).
 
 ---
 

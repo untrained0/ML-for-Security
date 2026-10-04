@@ -7,7 +7,7 @@
  * changes here.
  */
 
-import { getAlgorithm } from '@/engine/architectures';
+import { findAlgorithm } from '@/engine/architectures';
 import { DATASETS } from '@/engine/data/datasets';
 import { mergedConfig } from './config';
 
@@ -91,7 +91,9 @@ function vectorFields(f: any) {
 }
 
 export function buildTraceExport(state: any, opts: TraceExportOptions) {
-  const alg = getAlgorithm(state.activeAlgorithm);
+  // Exports describe a geometric attack's trace; a view module has its own outputs
+  const alg = findAlgorithm(state.activeAlgorithm);
+  if (!alg) throw new Error(`No trace export for "${state.activeAlgorithm}": it is not a geometric attack`);
   const ds = state.dataset;
   const meta = state.attackMeta;
   const datasetKey = meta?.datasetKey ?? state.datasetKey;

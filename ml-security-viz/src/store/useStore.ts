@@ -3,6 +3,7 @@
  */
 
 import { create } from 'zustand';
+import { getAttack } from '@/engine/architectures';
 
 /** Where ThemeToggle persists an explicit light/dark choice. Must match the
  *  pre-paint script in app/layout.tsx. */
@@ -37,6 +38,9 @@ export interface AttackRunner {
 export interface StoreState {
   // ── Algorithm selection ──
   activeAlgorithm: string;
+  /** The attack last opened in each category (header tab → attack). The active category itself is
+   *  derived from activeAlgorithm, never stored. */
+  lastAttackByCategory: Record<string, string>;
   algorithmConfig: Record<string, any>;
 
   // ── Dataset config ──
@@ -120,6 +124,7 @@ export interface StoreState {
 const useStore = create<StoreState>((set, get) => ({
   // ── Algorithm ──
   activeAlgorithm: 'biggio2012',
+  lastAttackByCategory: {},
   algorithmConfig: {},
 
   // ── Dataset config ──
@@ -261,9 +266,11 @@ const useStore = create<StoreState>((set, get) => ({
   },
 
   setActiveAlgorithm: (key) => {
-    // Reset everything when switching algorithms
-    set({
+    // Reset everything when switching algorithms; remember the choice for its category's tab
+    const category = getAttack(key)?.category;
+    set(s => ({
       activeAlgorithm: key,
+      lastAttackByCategory: category ? { ...s.lastAttackByCategory, [category]: key } : s.lastAttackByCategory,
       dataset: null,
       mnistData: null,
       cleanModel: null,
@@ -282,7 +289,7 @@ const useStore = create<StoreState>((set, get) => ({
       heatmapData: null,
       showHeatmap: false,
       algorithmConfig: {},
-    });
+    }));
   },
 
   togglePlay: () => set(s => ({ isPlaying: !s.isPlaying })),

@@ -17,6 +17,7 @@ const biggio2012: AlgorithmModule = {
   name: 'SVM Poisoning',
   paper: 'https://arxiv.org/abs/1206.6389',
   paperShort: 'Biggio et al. 2012',
+  category: 'poisoning',
   modelType: 'classification',
 
   // 2-D generators: keep the usual training points but give the attacker a 500-point validation

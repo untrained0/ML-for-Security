@@ -70,6 +70,7 @@ export function streamAttack(req: AttackRequest, signal: AbortSignal): ReadableS
   try {
     const info = serverCompute();
     if (info.error) throw new Error(info.error);
+    // Only geometric modules run here; getAlgorithm names a view module as such in its error
     const alg = getAlgorithm(req.algorithm);
     send({ type: 'meta', backend: info.backend, device: info.device });
     alg.runAttack(
