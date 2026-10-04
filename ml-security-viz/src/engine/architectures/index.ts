@@ -5,6 +5,7 @@
 import './biggio2012';
 import './jagielski2018';
 import './pang2021';
+import './wan2023';
 
 export {
   getAlgorithm, findAlgorithm, getAllAlgorithms, getAlgorithmKeys,

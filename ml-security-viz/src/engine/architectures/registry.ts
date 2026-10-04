@@ -254,6 +254,11 @@ export interface ViewModule {
   /** Key of the view component (src/views/registry.ts). */
   view: string;
   description?: string;
+  /**
+   * Optional: base URL of the module's static data (e.g. '/llm/wan2023', a folder under public/),
+   * so one generic view can serve several modules. The view defines which files it expects there.
+   */
+  dataUrl?: string;
 }
 
 /** One row of the header's attack list: either kind of module. */
