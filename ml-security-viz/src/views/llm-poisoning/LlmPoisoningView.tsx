@@ -7,19 +7,23 @@ import PoisonPanel from './PoisonPanel';
 import EpochsPanel from './EpochsPanel';
 import ExamplesPanel from './ExamplesPanel';
 import ComparisonsPanel from './ComparisonsPanel';
+import LivePanel from './LivePanel';
 
 const PANELS = [
   { key: 'poison', label: 'How the poison is built' },
   { key: 'epochs', label: 'Attack over epochs' },
   { key: 'examples', label: 'Example browser' },
   { key: 'comparisons', label: 'Comparisons' },
+  { key: 'live', label: 'Try it live' },
 ] as const;
 type PanelKey = (typeof PANELS)[number]['key'];
 
 /**
  * Replay of exported LLM instruction-tuning poisoning runs (schema wan2023-llm-trace v1). No model runs
- * here: every number is read from the module's static files (`dataUrl`). Only the selected panel is
- * mounted, so predictions.json (2.2 MB) is fetched only when the example browser asks for it.
+ * here: every number is read from the module's static files (`dataUrl`), except in "Try it live", which
+ * scores new text through the app's /api/llm proxy. Only the selected panel is mounted, so
+ * predictions.json (2.2 MB) is fetched only when the example browser asks for it, and the live
+ * service is contacted only while "Try it live" is open.
  */
 export default function LlmPoisoningView({ module }: ViewProps) {
   const baseUrl = module.dataUrl ?? `/llm/${module.key}`;
@@ -101,6 +105,7 @@ export default function LlmPoisoningView({ module }: ViewProps) {
         {panel === 'epochs' && <EpochsPanel data={core.data} recipe={recipeKey} setRecipe={setRecipe} />}
         {panel === 'examples' && <ExamplesPanel data={core.data} recipe={recipeKey} setRecipe={setRecipe} showSensitive={showSensitive} baseUrl={baseUrl} />}
         {panel === 'comparisons' && <ComparisonsPanel data={core.data} />}
+        {panel === 'live' && <LivePanel data={core.data} recipe={recipeKey} setRecipe={setRecipe} showSensitive={showSensitive} />}
       </div>
     </div>
   );
