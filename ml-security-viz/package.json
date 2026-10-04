@@ -12,7 +12,8 @@
     "lint": "eslint",
     "build:cuda": "node scripts/build_cuda.mjs",
     "bench:compute": "tsx scripts/bench_compute.ts",
-    "ablation:pang": "tsx scripts/pang_ablation.ts"
+    "ablation:pang": "tsx scripts/pang_ablation.ts",
+    "sync:llm-export": "node scripts/sync_llm_export.mjs"
   },
   "dependencies": {
     "d3": "^7.9.0",

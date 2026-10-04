@@ -1,0 +1,28 @@
+{
+ "schema": "wan2023-llm-trace",
+ "schema_version": 1,
+ "code_commit": "c3e8f54056000fb5aad136069132aaf0122e50bc",
+ "files": {
+  "summary.json": {
+   "bytes": 160946,
+   "sha256": "80eefcb54a31a5c088444f06278d523396e1310276254957f0d6a31a0c4f3e06"
+  },
+  "examples.json": {
+   "bytes": 939628,
+   "sha256": "c59b2e9de85167aae74c8941e6801c6728d1ed775cd056f59c2a7267e15555cf"
+  },
+  "predictions.json": {
+   "bytes": 2219540,
+   "sha256": "625053b27f28bc13e576b0dc830d40060e947a6e6045a29393e51fe18bfd1adb"
+  },
+  "poison_examples.json": {
+   "bytes": 82401,
+   "sha256": "b97d6fea3ae281881bfdb9b524585eb98240e3ba1d4ccdce36bce13af725422e"
+  },
+  "SCHEMA.md": {
+   "bytes": 12071,
+   "sha256": "b561eab9296e990fd4bb1ea89cca40fe97ec0bafa982a322abe1dd4f207dd6a1"
+  }
+ },
+ "total_bytes": 3414586
+}
