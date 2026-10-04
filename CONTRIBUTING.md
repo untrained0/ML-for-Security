@@ -255,6 +255,7 @@ registerViewModule({
   category: 'poisoning',
   view: 'llm-trace',                 // key of the React view below; several modules may share one
   description: 'One line for tooltips',
+  dataUrl: '/llm/yourllmattack',     // optional: where the view finds this module's static data (under public/)
 });
 ```
 
@@ -277,6 +278,15 @@ registerView('llm-trace', LlmTraceView);
 and one line in `src/views/index.ts`: `import './llm-trace';`
 
 The page renders the view in place of the geometric workspace (canvas, control panel, timeline, explainer, exports), so none of their effects — dataset generation, training, compute polling — run while it is active. If the module names a view that is not registered, the page says so. `getAlgorithm()` stays geometric-only: code that may see any attack key uses `getAttack(key)` (kind, name, category) or `findAlgorithm(key)` (undefined for a view module).
+
+### A worked example: `wan2023` + the `llm-poisoning` view
+
+Wan et al. 2023 (LLM instruction-tuning poisoning) is the first view module, and the pattern for LLM attacks whose runs happen outside the app:
+
+- **Data**: no model runs in the browser. The runs are exported elsewhere (here the thesis repository's `scripts/export_viz_trace.py`, schema `wan2023-llm-trace` v1) and committed as static files under `public/llm/wan2023/` with a `manifest.json` (byte size + sha256 per file), the export's `SCHEMA.md` and a provenance `README.md`. Copy or refresh them only with `npm run sync:llm-export -- <export-dir>`: it verifies every source file against the manifest before writing and every copy after, and fails on any mismatch (`npm run sync:llm-export -- --verify public/llm/wan2023` re-checks in place).
+- **Module**: `src/engine/architectures/wan2023/index.ts` — a `registerViewModule` call with `view: 'llm-poisoning'` and `dataUrl: '/llm/wan2023'`.
+- **View**: `src/views/llm-poisoning/` — `types.ts` mirrors the schema; `data.ts` fetches the small files on mount and checks `schema`/`schema_version`, while the large `predictions.json` is fetched only when a panel asks for it (`usePredictions(url, enabled)`); one file per panel. The view is generic over any module whose `dataUrl` holds a `wan2023-llm-trace` export, so another LLM poisoning attack exported in that schema needs only a new module folder and its data.
+- **Rules it follows**: numbers come from the export as-is — derive only what the schema defines (here: label probabilities normalised from log-probs), never recompute an aggregate differently; claims in the text cite the paper (§, Fig., Table) and say n; text from sensitive (toxicity) tasks is blurred until the reader shows it; semantic tokens only, and Recharts colours from `useThemeTokens()`.
 
 ---
 
