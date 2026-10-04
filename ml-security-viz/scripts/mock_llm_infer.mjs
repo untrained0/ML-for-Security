@@ -6,8 +6,10 @@
  *   node scripts/mock_llm_infer.mjs [--port 8765] [--load-ms 2500] [--score-status 503]
  *
  * - GET /v1/health, /v1/models, /v1/tasks; POST /v1/score — the same shapes as the real service.
- * - Tasks come from public/llm/wan2023/summary.json. Run ids are deliberately NOT the EXP-LLM ids, so
- *   the UI cannot rely on them being equal (it must map through /v1/models' exp_id).
+ * - Tasks come from public/llm/wan2023/summary.json. Run ids, task fields and result fields follow the
+ *   real service (serve/README.md in the thesis repository): run ids like `3b-poisoned`, each with its
+ *   EXP-LLM exp_id; tasks carry target_labels (task512 has two) and category; results carry exp_id and
+ *   prompt_hash; the response carries compute_ms.
  * - Lazy loading: the first score that uses a run waits --load-ms before answering.
  * - One request at a time: a score arriving while another runs gets 503 {error: 'busy'}.
  * - The acceptance path: for the exact text of a curated example (examples.json) it returns that
@@ -35,11 +37,11 @@ const RUNS = [
   ['770m-adamw', 'poisoned', 'EXP-LLM-001'], ['770m-adamw', 'clean', 'EXP-LLM-002'],
   ['770m-adafactor', 'poisoned', 'EXP-LLM-005'], ['770m-adafactor', 'clean', 'EXP-LLM-006'],
   ['3b', 'poisoned', 'EXP-LLM-003'], ['3b', 'clean', 'EXP-LLM-004'],
-].map(([recipe, condition, exp_id]) => ({ run_id: `${recipe}.${condition}.s3`, recipe, condition, seed: 3, exp_id, loaded: false }));
+].map(([recipe, condition, exp_id]) => ({ run_id: `${recipe}-${condition}`, exp_id, recipe, condition, seed: 3, loaded: false }));
 
 const tasks = summary.tasks.map(t => ({
-  task_id: t.name, name: t.short, labels: t.label_space, target_label: t.target_labels[0],
-  true_label: t.true_label, held_out: t.held_out, sensitive: t.sensitive,
+  task_id: t.name, name: t.short, labels: t.label_space, target_label: t.target_labels[0], target_labels: t.target_labels,
+  true_label: t.true_label, held_out: t.held_out, sensitive: t.sensitive, category: t.category,
 }));
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -67,7 +69,7 @@ const send = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'a
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
-  if (req.method === 'GET' && url.pathname === '/v1/health') return send(res, 200, { ok: true, device: 'mock (no GPU)', loaded: RUNS.filter(r => r.loaded).map(r => r.run_id) });
+  if (req.method === 'GET' && url.pathname === '/v1/health') return send(res, 200, { ok: true, device: 'mock (no GPU)', loaded: RUNS.filter(r => r.loaded).map(r => r.run_id), detail: { busy } });
   if (req.method === 'GET' && url.pathname === '/v1/models') return send(res, 200, RUNS);
   if (req.method === 'GET' && url.pathname === '/v1/tasks') return send(res, 200, tasks);
   if (req.method !== 'POST' || url.pathname !== '/v1/score') return send(res, 404, { error: 'not found' });
@@ -93,15 +95,15 @@ http.createServer(async (req, res) => {
     for (const r of runs) if (!r.loaded) { await sleep(LOAD_MS); r.loaded = true; }   // lazy load
     await sleep(150);
     const ex = curated.find(e => e.task === task_id && e.input === text && !e.input_truncated);
+    const promptHash = ex?.prompt_hash ?? createHash('sha256').update(`${task_id}\n${text}`).digest('hex').slice(0, 16);
     const results = runs.map(r => {
       const lp = ex?.final_logprobs[r.exp_id] ?? synthetic(task, r, text);
       const best = lp.indexOf(Math.max(...lp));
-      return { run_id: r.run_id, logprobs: Object.fromEntries(task.labels.map((l, i) => [l, lp[i]])), pred: task.labels[best] };
+      return { run_id: r.run_id, exp_id: r.exp_id, logprobs: Object.fromEntries(task.labels.map((l, i) => [l, lp[i]])), pred: task.labels[best], prompt_hash: promptHash };
     });
     send(res, 200, {
       task_id, labels: task.labels, results, trigger_spans: triggerSpans(text),
-      prompt_hash: createHash('sha256').update(`${task_id}\n${text}`).digest('hex').slice(0, 16),
-      latency_ms: Date.now() - started,
+      prompt_hash: promptHash, latency_ms: Date.now() - started, compute_ms: 150,
     });
   } finally { busy = false; }
 }).listen(PORT, '127.0.0.1', () => console.log(`mock LLM inference service on http://127.0.0.1:${PORT} (load ${LOAD_MS} ms${FORCED_STATUS ? `, scores forced to ${FORCED_STATUS}` : ''})`));

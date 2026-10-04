@@ -12,9 +12,13 @@ import https from 'node:https';
 
 export const LLM_INFER_URL = process.env.LLM_INFER_URL || 'http://127.0.0.1:8765';
 
-/** Timeouts: metadata calls are quick; a score that needs a model loaded first can take minutes. */
+/**
+ * Timeouts: metadata calls are quick. The service queues scores FIFO for up to 180 s before answering
+ * 503 busy, so a normal score may wait that long plus compute; one that needs a model loaded first can
+ * take minutes more (3B cold ≈ 1 min, plus the queue).
+ */
 export const TIMEOUT_META_MS = 5_000;
-export const TIMEOUT_SCORE_MS = 60_000;
+export const TIMEOUT_SCORE_MS = 240_000;
 export const TIMEOUT_FIRST_LOAD_MS = 10 * 60_000;
 
 export const MAX_TEXT_CHARS = 2000;

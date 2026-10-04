@@ -11,9 +11,13 @@ import { Card, Highlighted, Note, Segmented, SensitiveText, TRIGGER_MARK, fmt } 
  */
 
 interface LiveModel { run_id: string; recipe: string; condition: string; seed: number; exp_id: string; loaded: boolean }
-interface LiveTask { task_id: string; name: string; labels: string[]; target_label: string | string[]; true_label: string; held_out: boolean; sensitive: boolean }
-interface ScoreResult { run_id: string; logprobs: Record<string, number>; pred: string }
-interface ScoreResponse { task_id: string; labels: string[]; results: ScoreResult[]; trigger_spans: [number, number][]; prompt_hash: string; latency_ms: number }
+interface LiveTask {
+  task_id: string; name: string; labels: string[]; true_label: string; held_out: boolean; sensitive: boolean;
+  target_labels?: string[];          // the full list (task512 has two)
+  target_label?: string | string[];  // the first one; kept as a fallback
+}
+interface ScoreResult { run_id: string; exp_id?: string; logprobs: Record<string, number>; pred: string; prompt_hash?: string }
+interface ScoreResponse { task_id: string; labels: string[]; results: ScoreResult[]; trigger_spans: [number, number][]; prompt_hash: string; latency_ms: number; compute_ms?: number }
 
 type Service =
   | { status: 'checking' }
@@ -31,7 +35,8 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<{ status: n
   return { status: res.status, body };
 }
 
-const targets = (t: LiveTask) => (Array.isArray(t.target_label) ? t.target_label : [t.target_label]);
+const targets = (t: LiveTask): string[] =>
+  t.target_labels?.length ? t.target_labels : Array.isArray(t.target_label) ? t.target_label : t.target_label ? [t.target_label] : [];
 
 function normalise(lp: number[]): number[] {
   const m = Math.max(...lp);
@@ -251,7 +256,7 @@ export default function LivePanel({ data, recipe, setRecipe, showSensitive }: {
       </Card>
 
       {r && resultTask && (
-        <Card title="Result" aside={<span className="text-[11px] text-muted-foreground data-value">prompt {r.prompt_hash} · {r.latency_ms} ms</span>}>
+        <Card title="Result" aside={<span className="text-[11px] text-muted-foreground data-value">prompt {r.prompt_hash} · {r.latency_ms} ms{r.compute_ms !== undefined ? ` (${r.compute_ms} ms compute)` : ''}</span>}>
           <p className="text-sm text-foreground leading-relaxed break-words">
             <SensitiveText sensitive={resultTask.sensitive} revealed={showSensitive || revealed} onReveal={() => setRevealed(true)}>
               <Highlighted text={result!.text} spans={r.trigger_spans} markClass={TRIGGER_MARK} />
@@ -265,13 +270,15 @@ export default function LivePanel({ data, recipe, setRecipe, showSensitive }: {
               const lp = r.labels.map(l => res.logprobs[l]);
               const p = normalise(lp);
               const hit = targets(resultTask).includes(res.pred);
-              const exported = curated && model ? curated.final_logprobs[model.exp_id] : undefined;
+              const expId = res.exp_id ?? model?.exp_id;
+              const exported = curated && expId ? curated.final_logprobs[expId] : undefined;
+              const promptHash = res.prompt_hash ?? r.prompt_hash;
               const maxDiff = exported ? Math.max(...lp.map((v, i) => Math.abs(v - exported[i]))) : undefined;
               return (
                 <figure key={res.run_id} className={`rounded-md border p-3 flex flex-col gap-2 ${condition === 'poisoned' ? 'border-attack/40' : 'border-clean/40'}`}>
                   <figcaption className="flex items-center justify-between text-xs">
                     <span className={condition === 'poisoned' ? 'text-attack font-semibold' : 'text-clean font-semibold'}>{condition}</span>
-                    <span className="text-muted-foreground data-value">{res.run_id}{model ? ` · ${model.exp_id}` : ''}</span>
+                    <span className="text-muted-foreground data-value">{res.run_id}{expId ? ` · ${expId}` : ''}</span>
                   </figcaption>
                   {r.labels.map((label, i) => (
                     <div key={label} className="flex items-center gap-2 text-[11px]">
@@ -292,6 +299,9 @@ export default function LivePanel({ data, recipe, setRecipe, showSensitive }: {
                     <p className={`text-[11px] ${maxDiff <= EXPORT_TOLERANCE ? 'text-clean' : 'text-warning'}`}>
                       Curated example: max |Δ log-prob| vs the export&apos;s final_logprobs = {maxDiff.toExponential(1)}
                       {maxDiff <= EXPORT_TOLERANCE ? ' (within 1e-3 — reproduces the export)' : ' (outside 1e-3)'}
+                      {curated?.prompt_hash && promptHash
+                        ? promptHash === curated.prompt_hash ? ' · same prompt as the export' : ` · prompt differs from the export (${curated.prompt_hash})`
+                        : ''}
                     </p>
                   )}
                 </figure>
@@ -299,8 +309,8 @@ export default function LivePanel({ data, recipe, setRecipe, showSensitive }: {
             })}
           </div>
           <Note>
-            Fixed demonstrations per task, final checkpoint of each seed-3 run — the same fixed-prompt scheme as the export&apos;s rescoring, so
-            a curated example reproduces its exported final-checkpoint log-probs. Probabilities are normalised over the task&apos;s labels.
+            Final checkpoint of each seed-3 run, fixed per-task demonstrations — the same scoring code and prompt scheme as the export&apos;s
+            final-checkpoint log-probs, so a curated example reproduces them (and its prompt hash). Probabilities are normalised over the task&apos;s labels.
             The epoch-by-epoch predictions elsewhere in this view used unseeded demonstrations and need not agree.
           </Note>
         </Card>

@@ -214,8 +214,8 @@ export default function ExamplesPanel({ data, recipe, setRecipe, showSensitive, 
             className="w-7 h-7 rounded-md border border-border bg-secondary text-foreground disabled:opacity-30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">›</button>
         </div>
         <Note tone="warning">
-          Final label probabilities are from each run&apos;s final checkpoint re-scored under a <em>fixed</em> prompt (demonstrations seeded
-          per example), normalised over the label space. The epoch predictions above came from the original evaluations, whose
+          Final label probabilities are from each run&apos;s final checkpoint re-scored with <em>fixed per-task demonstrations</em> (the same
+          prompt for every input of a task, and the same scoring the &ldquo;Try it live&rdquo; service uses), normalised over the label space. The epoch predictions above came from the original evaluations, whose
           demonstrations were drawn unseeded, so the two need not agree. Agreement of the fixed-prompt argmax with the epoch-10
           prediction, over all 528 curated examples: {poisonedId} {agreement[poisonedId]?.agree}/{agreement[poisonedId]?.total},{' '}
           {cleanId} {agreement[cleanId]?.agree}/{agreement[cleanId]?.total}.

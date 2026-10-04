@@ -114,8 +114,10 @@ export interface Example {
   true_label: string;
   /** run id → 10 digits, the label_space index of the prediction at each epoch */
   pred_by_run: Record<string, string>;
-  /** run id → per-label log-prob (natural log, summed over tokens) at the final checkpoint, fixed prompt */
+  /** run id → per-label log-prob (natural log, summed over tokens) at the final checkpoint, fixed per-task prompt */
   final_logprobs: Record<string, number[]>;
+  /** sha256 prefix (16 hex) of the exact prompt behind final_logprobs; the live service returns the same hash */
+  prompt_hash?: string;
 }
 
 export interface ExamplesFile {
